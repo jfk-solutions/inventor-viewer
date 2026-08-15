@@ -25,7 +25,7 @@ import { ACCEPTED_FILE_TYPES, isAcceptedFile, isModelFile } from "./formats";
 
 const IMPRINT_URL = "https://github.com/jfk-solutions/.github/blob/main/profile/imprint.md";
 const PRIVACY_URL = `${import.meta.env.BASE_URL}datenschutz.html`;
-const CONTACT_URL = "mailto:info@jfk-solutions.de?subject=Inventor%20file-reading%20support";
+const CONTACT_URL = "mailto:info@jfk-solutions.de?subject=CAD%20file-reading%20support";
 
 type DropZoneProps = {
   onFiles: (files: File[]) => void;
@@ -37,6 +37,7 @@ function FormatPills() {
     <span><FileBox size={18} /> Inventor <b>IPT</b></span>
     <span><Boxes size={18} /> Assembly <b>IAM</b></span>
     <span><FileCode2 size={18} /> Drawing <b>IDW</b></span>
+    <span><Boxes size={18} /> SolidWorks <b>SLDPRT / SLDASM</b></span>
     <span><Layers3 size={18} /> AutoCAD <b>DWG / DXF</b></span>
     <span><Box size={18} /> CAD exchange <b>STEP / IGES / BREP</b></span>
     <span><Box size={18} /> CAD models <b>3DM / FCSTD</b></span>
@@ -74,7 +75,7 @@ export function DropZone({ onFiles, compact = false }: DropZoneProps) {
         {!compact && <span>or click to browse your computer</span>}
       </div>
       {!compact && <button type="button" className="choose-button">Choose files <ArrowRight size={16} /></button>}
-      {!compact && <div className="drop-formats">IPT · IAM · DWG · STEP · IGES · 3DM · IFC · FCSTD · GLB · STL</div>}
+      {!compact && <div className="drop-formats">IPT · IAM · SLDPRT · SLDASM · DWG · STEP · IGES · IFC · GLB · STL</div>}
     </div>
   );
 }
@@ -98,7 +99,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
         <div className="hero-copy">
           <div className="eyebrow"><span /> Browser-based CAD viewing by JFK Solutions</div>
           <h1>Your CAD data.<br /><em>Right here.</em></h1>
-          <p>Open Inventor, AutoCAD, STEP, Rhino, FreeCAD and IFC files — plus common 3D formats — directly in your browser. No installation. No upload.</p>
+          <p>Open Inventor, SolidWorks, AutoCAD, STEP, Rhino, FreeCAD and IFC files — plus common 3D formats — directly in your browser. No installation. No upload.</p>
           <div className="trust-row">
             <span><ShieldCheck size={17} /> Processed locally</span>
             <span><Zap size={17} /> Opens in seconds</span>
@@ -127,6 +128,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
           <div className="format-details page-width">
             <div><strong>Inventor 3D</strong><span>.ipt parts, .iam assemblies, .ipn presentations</span></div>
             <div><strong>Inventor 2D</strong><span>.idw drawings and Inventor .dwg references</span></div>
+            <div><strong>SolidWorks</strong><span>.sldprt parts, .sldasm assemblies and .slddrw drawings, individually or in ZIP workspaces</span></div>
             <div><strong>AutoCAD</strong><span>.dwg and ASCII or binary .dxf drawings</span></div>
             <div><strong>CAD exchange</strong><span>.step, .stp, .iges, .igs, .brep and .brp geometry with names and colors</span></div>
             <div><strong>Rhino and FreeCAD</strong><span>.3dm models and visible Part/PartDesign geometry from .fcstd documents</span></div>
@@ -164,9 +166,9 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
       <section className="cta-section" id="contact">
         <div className="page-width cta-inner">
           <div>
-            <span>Inventor integration for your business</span>
-            <h2>Need Inventor file-reading support?</h2>
-            <p>We help companies bring Inventor data into their own applications and engineering workflows.</p>
+            <span>CAD integration for your business</span>
+            <h2>Need Inventor or SolidWorks file-reading support?</h2>
+            <p>We help companies bring native CAD data into their own applications and engineering workflows.</p>
           </div>
           <a className="contact-button" href={CONTACT_URL}>Discuss your use case <Mail size={18} /></a>
         </div>

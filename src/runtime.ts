@@ -32,6 +32,8 @@ export type CadRuntime = {
   Inventor: any;
   InventorThree: any;
   InventorStep: any;
+  SolidWorks: any;
+  SolidWorksThree: any;
   Acad: any;
   loadOpenCascade: () => Promise<any>;
 };

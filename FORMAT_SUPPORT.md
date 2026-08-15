@@ -48,6 +48,7 @@ Links in **Open-source information or library** are implementation leads, not de
 | `.pcd` | Point Cloud Data | Point Cloud Library (PCL) | Yes | Open | Current Three.js loader; [PCL](https://github.com/PointCloudLibrary/pcl) |
 | `.ply` | Polygon File Format | Stanford 3D scanning and mesh ecosystem | Yes | Open | Current Three.js loader; [Assimp](https://github.com/assimp/assimp) |
 | `.raw3d` | RAW3D scene | Emulate3D / Demo3D | Yes | Closed | Current MIT-licensed [demo3d-file-format](https://github.com/JFK-Solutions/demo3d-file-format) reader |
+| `.sldasm`, `.sldprt`, `.slddrw` | SolidWorks assembly, part and drawing | Dassault Systèmes SolidWorks | Yes | Closed | Current MIT-licensed `solidworks-file-format` reader for modern and legacy containers, saved display tessellation, metadata and previews |
 | `.step`, `.stp` | STEP (ISO 10303) | Autodesk Fusion and most mechanical CAD systems | Yes | Open | Current [Open CASCADE Technology](https://github.com/Open-Cascade-SAS/OCCT) reader and tessellator |
 | `.stl` | Stereolithography mesh | Autodesk Fusion, Onshape, 3D printing, scanning and CAD tools | Yes | Open | Current Three.js loader; [Assimp](https://github.com/assimp/assimp) |
 | `.usd` | Universal Scene Description | Pixar USD ecosystem | Yes | Open | Current Three.js loader; official [OpenUSD](https://github.com/PixarAnimationStudios/OpenUSD) |
@@ -60,7 +61,7 @@ Links in **Open-source information or library** are implementation leads, not de
 | `.vtk` | VTK legacy dataset | Visualization Toolkit (VTK) | Yes | Open | Current Three.js loader; official [VTK](https://github.com/Kitware/VTK) |
 | `.vtp` | VTK XML PolyData | Visualization Toolkit (VTK) | Yes | Open | Current Three.js loader; official [VTK](https://github.com/Kitware/VTK) |
 | `.xyz` | XYZ point cloud | Point-cloud and scanning tools | Yes | Open | Current Three.js loader; simple documented text layout with ecosystem-specific variants |
-| `.zip` | Packaged Inventor workspace | Viewer package containing Inventor files and dependencies | Yes | Open | Current [inventor-file-format](https://github.com/JFK-Solutions/inventor-file-format) workspace reader |
+| `.zip` | Packaged Inventor or SolidWorks workspace | Viewer package containing native CAD files and dependencies | Yes | Open | Current Inventor and SolidWorks workspace readers with automatic package detection |
 | `.3dxml` | 3DXML | Dassault Systèmes CATIA / 3DEXPERIENCE | No | Closed | No complete open-source reader identified; [Assimp tracks the restrictive format](https://github.com/assimp/assimp/issues/3145) |
 | `.abc` | Alembic | Film/VFX DCC tools | No | Open | Official [Alembic](https://github.com/alembic/alembic) library |
 | `.asm` | Solid Edge or Creo assembly; extension also used by other CAD systems | Siemens Solid Edge or PTC Creo, depending on file origin | No | Closed | Official [Solid Edge API](https://support.industrysoftware.automation.siemens.com/trainings/se/106/api/SolidEdgeFramework~Application~GetSaveAsFileName.html) and [Creo file-type documentation](https://support.ptc.com/help/creo/creo_pma/r12/usascii/fundamentals/fundamentals/About_File_Types.html); no dependable complete open-source reader identified |
@@ -116,7 +117,6 @@ Links in **Open-source information or library** are implementation leads, not de
 | `.skp` | SketchUp model | Trimble SketchUp | No | Closed | A proprietary SDK is available, but no dependable complete open-source reader was identified |
 | `.sim` | Simcenter 3D simulation definition | Siemens NX CAE / Simcenter 3D | No | Closed | No dependable complete open-source reader identified; normally references an NX/Simcenter FEM model |
 | `.simarc` | SIMIT project archive | Siemens SIMIT with SIMATIC / NX MCD virtual commissioning | No | Closed | Not a standalone 3D model; no dependable complete open-source reader identified |
-| `.sldasm`, `.sldprt` | SOLIDWORKS assembly / part | Dassault Systèmes SOLIDWORKS | No | Closed | No dependable complete open-source reader identified |
 | `.x`, `.xof` | DirectX model | Microsoft DirectX legacy tooling | No | Open | [Assimp](https://github.com/assimp/assimp/blob/master/doc/Fileformats.md) importer |
 | `.x3d`, `.x3db`, `.x3dv` | Extensible 3D | Web3D Consortium ecosystem | No | Open | [Assimp](https://github.com/assimp/assimp) and browser-oriented [X3DOM](https://github.com/x3dom/x3dom) |
 | `.xas`, `.xpr` | Creo Family Table assembly / part accelerator | PTC Creo Parametric | No | Closed | [Official PTC Creo View file list](https://support.ptc.com/help/creo/view/r12.0/en/creo_view/visualization/shared/Opening_Pro_ENGINEER_Files_in_ProductView.html); dependent on Creo family data and no dependable complete open-source reader identified |

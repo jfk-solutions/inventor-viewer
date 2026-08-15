@@ -76,6 +76,7 @@ function extension(path: string) {
 function kindFor(path: string) {
   return ({
     iam: "Assembly", ipt: "Part", idw: "Drawing", ipn: "Presentation", ide: "iFeature",
+    sldasm: "SolidWorks assembly", sldprt: "SolidWorks part", slddrw: "SolidWorks drawing",
     dwg: "AutoCAD drawing", dxf: "DXF drawing", glb: "Binary glTF", gltf: "glTF model",
     obj: "Wavefront model", stl: "STL mesh", ply: "PLY model", fbx: "FBX model",
     "3mf": "3MF model", amf: "AMF model", dae: "Collada model", "3ds": "3DS model",
@@ -135,8 +136,8 @@ function objectProperties(object: any, hit?: any): PropertySection[] {
   if (!object) return [];
   object.updateWorldMatrix?.(true, false);
   const position = object.getWorldPosition ? object.getWorldPosition(object.position.clone()) : object.position;
-  const metadata = object.userData?.inventor ?? object.userData?.raw3d ?? object.userData?.demo3d ?? {};
-  const metadataTitle = object.userData?.inventor ? "Inventor metadata" : object.userData?.raw3d ? "RAW3D metadata" : "Demo3D metadata";
+  const metadata = object.userData?.inventor ?? object.userData?.solidworks ?? object.userData?.raw3d ?? object.userData?.demo3d ?? {};
+  const metadataTitle = object.userData?.inventor ? "Inventor metadata" : object.userData?.solidworks ? "SolidWorks metadata" : object.userData?.raw3d ? "RAW3D metadata" : "Demo3D metadata";
   const primary = [
     { name: "Name", value: object.name || metadata.name || "Unnamed object" },
     { name: "Type", value: metadata.kind ? cleanName(metadata.kind) : object.type },
@@ -182,10 +183,10 @@ function IconForKind({ kind }: { kind: string }) {
 }
 
 function buildTree(object: any, prefix = "root", depth = 0): TreeItem {
-  const kind = cleanName(object.userData?.inventor?.kind ?? object.userData?.raw3d?.kind ?? object.userData?.demo3d?.kind ?? object.type ?? "Object");
+  const kind = cleanName(object.userData?.inventor?.kind ?? object.userData?.solidworks?.kind ?? object.userData?.raw3d?.kind ?? object.userData?.demo3d?.kind ?? object.type ?? "Object");
   return {
     id: `${prefix}-${object.id}`,
-    label: object.name || object.userData?.inventor?.name || object.userData?.raw3d?.name || object.userData?.demo3d?.name || kind,
+    label: object.name || object.userData?.inventor?.name || object.userData?.solidworks?.name || object.userData?.raw3d?.name || object.userData?.demo3d?.name || kind,
     kind,
     object,
     children: depth > 7 ? [] : (object.children ?? [])
@@ -499,6 +500,52 @@ function setModelTwoSided(model: any, enabled: boolean, THREE: any, originalSide
   });
 }
 
+async function createSolidWorksModel(runtime: CadRuntime, document: any) {
+  const { THREE, SolidWorksThree } = runtime;
+  const model = SolidWorksThree.createSolidWorksThreeGroup(document, { mergeFaces: true });
+  const configuration = document.configurations?.[0];
+  const triangleCount = (document.displayMeshes ?? []).reduce((total: number, mesh: any) => total + (mesh.indices?.length ?? 0) / 3, 0);
+  model.userData.solidworksDocument = true;
+  model.userData.solidworks = {
+    ...document.globalProperties,
+    ...configuration?.properties,
+    kind: `${document.type} document`,
+    sourcePath: document.path,
+    storage: document.storage,
+    version: document.version || "Unknown",
+    configurations: document.configurations?.length ?? 0,
+    sheets: document.sheets?.length ?? 0,
+    displayMeshes: document.displayMeshes?.length ?? 0,
+    triangles: triangleCount,
+    diagnostics: document.diagnostics?.length ?? 0,
+  };
+  if (triangleCount) return { model, objectUrls: [] as string[] };
+
+  const preview = configuration?.previewPng ?? document.previewPng ?? document.sheets?.[0]?.previewPng;
+  if (!preview) return { model, objectUrls: [] as string[] };
+  const objectUrl = URL.createObjectURL(new Blob([preview], { type: "image/png" }));
+  try {
+    const texture = await new THREE.TextureLoader().loadAsync(objectUrl);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const width = Number(texture.image?.naturalWidth ?? texture.image?.width ?? 1);
+    const height = Number(texture.image?.naturalHeight ?? texture.image?.height ?? 1);
+    const aspect = Math.max(width / Math.max(height, 1), 0.01);
+    const geometry = new THREE.PlaneGeometry(aspect, 1);
+    const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: true });
+    const previewMesh = new THREE.Mesh(geometry, material);
+    previewMesh.name = `${document.name} saved preview`;
+    previewMesh.userData.solidworks = { kind: "saved preview", sourcePath: document.path, width, height };
+    model.add(previewMesh);
+    model.userData.solidworksOwnedMaterials ??= [];
+    model.userData.solidworksOwnedMaterials.push(material);
+    model.userData.solidworksPreviewTexture = texture;
+    return { model, objectUrls: [objectUrl] };
+  } catch (cause) {
+    URL.revokeObjectURL(objectUrl);
+    throw cause;
+  }
+}
+
 export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<any>(null);
@@ -591,7 +638,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         setProgress(10);
         const runtime = await loadCadRuntime();
         if (disposed) return;
-        const { THREE, OrbitControls, Inventor, InventorThree } = runtime;
+        const { THREE, OrbitControls, Inventor, InventorThree, SolidWorks, SolidWorksThree } = runtime;
         const canvas = canvasRef.current!;
         const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: "high-performance" });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -767,7 +814,10 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           engine.stepSource = null;
           if (!engine.model) return;
           scene.remove(engine.model);
-          if (!disposeDemo3DModel(engine.model)) InventorThree.disposeInventorThreeGroup?.(engine.model);
+          if (engine.model.userData?.solidworksDocument) {
+            engine.model.userData.solidworksPreviewTexture?.dispose?.();
+            SolidWorksThree.disposeSolidWorksThreeGroup?.(engine.model);
+          } else if (!disposeDemo3DModel(engine.model)) InventorThree.disposeInventorThreeGroup?.(engine.model);
           for (const url of engine.objectUrls ?? []) URL.revokeObjectURL(url);
           engine.objectUrls = [];
           engine.model = null;
@@ -800,6 +850,65 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           setProgress(100);
           setStatus("Ready");
         };
+
+        const solidWorksFiles = files.filter((file) => /\.(?:sldprt|sldasm|slddrw)$/i.test(file.name));
+        let solidWorksWorkspace: any;
+        if (solidWorksFiles.length) {
+          setStatus("Reading SolidWorks workspace…");
+          setProgress(22);
+          solidWorksWorkspace = await SolidWorks.openSolidWorksWorkspace(solidWorksFiles.map((file) => ({ path: filePath(file), data: file })));
+        } else if (files.length === 1 && /\.zip$/i.test(files[0].name)) {
+          try {
+            solidWorksWorkspace = await SolidWorks.openSolidWorksWorkspace(files[0], { path: files[0].name });
+          } catch (cause) {
+            if ((cause as any)?.code !== "NO_SOLIDWORKS_FILES") throw cause;
+          }
+        }
+
+        if (solidWorksWorkspace) {
+          workspace = solidWorksWorkspace;
+          setStatus("Finding SolidWorks documents…");
+          setProgress(48);
+          const candidates = await solidWorksWorkspace.findRootCandidates();
+          const candidatePaths = new Set(candidates.map((item: any) => item.path.toLocaleLowerCase()));
+          const rootOptions = [...solidWorksWorkspace.entries]
+            .sort((left: any, right: any) => Number(!candidatePaths.has(left.path.toLocaleLowerCase())) - Number(!candidatePaths.has(right.path.toLocaleLowerCase()))
+              || left.path.localeCompare(right.path, undefined, { numeric: true }))
+            .map((item: any) => ({ path: item.path, label: item.path, kind: kindFor(item.path) }));
+          if (!rootOptions.length) throw new Error("No supported SolidWorks document was found in this selection.");
+          setRoots(rootOptions);
+
+          const openSolidWorksRoot = async (path: string) => {
+            if (disposed) return;
+            const generation = ++rootGeneration;
+            rootController?.abort();
+            const controller = new AbortController();
+            rootController = controller;
+            const isCurrent = () => !disposed && !controller.signal.aborted && generation === rootGeneration;
+            setActiveRoot(path);
+            setTree(null);
+            clearSelection();
+            setError(null);
+            setStatus(`Parsing ${path}…`);
+            setProgress(58);
+            releaseModel();
+            const document = await solidWorksWorkspace.openDocument(path);
+            if (!isCurrent()) return;
+            setStatus(document.displayMeshes?.length ? "Preparing SolidWorks geometry…" : "Loading saved SolidWorks preview…");
+            setProgress(82);
+            const loaded = await createSolidWorksModel(runtime, document);
+            if (!isCurrent()) {
+              loaded.model.userData.solidworksPreviewTexture?.dispose?.();
+              SolidWorksThree.disposeSolidWorksThreeGroup?.(loaded.model);
+              for (const url of loaded.objectUrls) URL.revokeObjectURL(url);
+              return;
+            }
+            presentModel(loaded.model, loaded.objectUrls);
+          };
+          rootLoaderRef.current = openSolidWorksRoot;
+          await openSolidWorksRoot(rootOptions[0].path);
+          return;
+        }
 
         const directFiles = files.filter((file) => isDirectModelFile(file.name));
         if (directFiles.length) {

@@ -18,6 +18,9 @@ const webIfcPackage = path.join(root, "node_modules", "web-ifc");
 const webIfcTarget = path.join(root, "public", "vendor", "web-ifc");
 const fflatePackage = path.join(root, "node_modules", "fflate");
 const fflateTarget = path.join(root, "public", "vendor", "fflate");
+const solidWorksLicense = path.join(root, "..", "solidworks-file-format", "LICENSE");
+const solidWorksNotices = path.join(root, "..", "solidworks-file-format", "THIRD_PARTY_NOTICES.md");
+const licenseTarget = path.join(root, "public", "vendor", "licenses");
 
 await mkdir(path.dirname(outfile), { recursive: true });
 await build({
@@ -71,10 +74,14 @@ await copyFile(path.join(webIfcPackage, "LICENSE.md"), path.join(webIfcTarget, "
 await mkdir(fflateTarget, { recursive: true });
 await copyFile(path.join(fflatePackage, "LICENSE"), path.join(fflateTarget, "LICENSE"));
 
+await mkdir(licenseTarget, { recursive: true });
+await copyFile(solidWorksLicense, path.join(licenseTarget, "solidworks-file-format-LICENSE"));
+await copyFile(solidWorksNotices, path.join(licenseTarget, "solidworks-file-format-NOTICES.md"));
+
 // Generated template literals can inherit trailing spaces from upstream shader
 // sources. Keep the committed browser bundle clean and reproducible.
 const bundled = await readFile(outfile, "utf8");
-const normalized = bundled.replace(/[\t ]+$/gm, "");
+const normalized = bundled.replace(/[\t ]+$/gm, "").replace(/^ +(?=\t)/gm, "");
 await writeFile(outfile, normalized, "utf8");
 
 const version = createHash("sha256").update(normalized).digest("hex").slice(0, 16);
