@@ -57,7 +57,7 @@ export function DropZone({ onFiles, compact = false }: DropZoneProps) {
         {!compact && <span>or click to browse your computer</span>}
       </div>
       {!compact && <button type="button" className="choose-button">Choose files <ArrowRight size={16} /></button>}
-      {!compact && <div className="drop-formats">IPT · IAM · DWG · GLB · GLTF · OBJ · STL · PLY · FBX</div>}
+      {!compact && <div className="drop-formats">IPT · IAM · DWG · DEMO3D · RAW3D · GLB · OBJ · STL</div>}
     </div>
   );
 }
@@ -80,7 +80,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
         <div className="hero-copy">
           <div className="eyebrow"><span /> Browser-based CAD viewing by JFK Solutions</div>
           <h1>Your CAD data.<br /><em>Right here.</em></h1>
-          <p>Open Inventor and AutoCAD files — plus common Three.js 3D formats — directly in your browser. No installation. No upload.</p>
+          <p>Open Inventor, AutoCAD and Demo3D files — plus common Three.js 3D formats — directly in your browser. No installation. No upload.</p>
           <div className="trust-row">
             <span><ShieldCheck size={17} /> Processed locally</span>
             <span><Zap size={17} /> Opens in seconds</span>
@@ -102,6 +102,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
             <span><Layers3 size={18} /> AutoCAD <b>DWG / DXF</b></span>
             <span><FileArchive size={18} /> Workspace <b>ZIP</b></span>
             <span><Box size={18} /> 3D models <b>GLB / STL</b></span>
+            <span><Box size={18} /> Simulation <b>DEMO3D / RAW3D</b></span>
           </div>
           <button className="format-more" type="button" onClick={() => setFormatsOpen(!formatsOpen)} aria-expanded={formatsOpen}>
             All formats <ChevronDown size={15} className={formatsOpen ? "rotated" : ""} />
@@ -114,6 +115,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
             <div><strong>AutoCAD</strong><span>.dwg and ASCII or binary .dxf drawings</span></div>
             <div><strong>Packaged projects</strong><span>.zip workspaces and .faf Factory Assets with linked files</span></div>
             <div><strong>Three.js models</strong><span>.glb, .gltf, .obj, .stl, .ply, .fbx, .3mf, .dae, .usdz and more</span></div>
+            <div><strong>Demo3D simulation</strong><span>.demo3d projects and render-ready .raw3d scenes</span></div>
           </div>
         )}
       </section>

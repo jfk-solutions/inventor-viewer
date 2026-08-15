@@ -1,6 +1,6 @@
 # JFK Solutions CAD Viewer
 
-A modern, static 3D viewer for Autodesk Inventor, AutoCAD and common Three.js model formats. Files are parsed and rendered entirely in the browser: there is no upload service, no account and no Vault connection.
+A modern, static 3D viewer for Autodesk Inventor, AutoCAD, Demo3D and common Three.js model formats. Files are parsed and rendered entirely in the browser: there is no upload service, no account and no Vault connection.
 
 The repository is designed for GitHub Pages. The complete minimized CAD runtime is checked in at `public/vendor/cad-viewer-runtime.min.js`, so a clean Pages build does not need unpublished packages or the two sibling development repositories.
 
@@ -27,6 +27,7 @@ The repository is designed for GitHub Pages. The complete minimized CAD runtime 
 | `.pcd`, `.xyz` | Point-cloud data |
 | `.vox` | MagicaVoxel models |
 | `.json` | Three.js Object/Scene JSON |
+| `.demo3d`, `.raw3d` | Demo3D/Emulate3D projects and render-ready RAW3D scenes, loaded through the lazy `@jfk-solutions/demo3d-file-format` integration |
 
 For assemblies, package the IAM and all referenced documents into one ZIP while retaining their relative paths. The viewer discovers candidate root documents and opens the assembly first. Missing references remain visible in the model metadata; the viewer never attempts to access Autodesk Vault.
 
@@ -110,6 +111,7 @@ In the GitHub repository, open **Settings → Pages** and set **Source** to **Gi
 - Three.js for WebGL rendering and camera interaction
 - [`inventor-file-format`](https://github.com/JFK-Solutions/inventor-file-format) for Inventor parsing, workspaces, ZIP providers and Three.js scene conversion
 - [`acad-ts`](https://github.com/node-projects/acad-ts) for DWG/DXF parsing
+- [`demo3d-file-format`](https://github.com/JFK-Solutions/demo3d-file-format) for lazily loaded Demo3D/RAW3D parsing and Three.js scene conversion
 
 See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for bundled dependency licenses.
 

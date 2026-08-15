@@ -26,8 +26,9 @@ import {
   X,
 } from "lucide-react";
 import { BrandIcon } from "./Brand";
+import { disposeDemo3DModel, loadDemo3DFile } from "./demo3d";
 import { loadCadRuntime, type CadRuntime } from "./runtime";
-import { ACCEPTED_FILE_TYPES, fileExtension, isThreeModelFile } from "./formats";
+import { ACCEPTED_FILE_TYPES, fileExtension, isDirectModelFile } from "./formats";
 
 type ViewerProps = {
   files: File[];
@@ -67,6 +68,7 @@ function kindFor(path: string) {
     wrl: "VRML model", vrml: "VRML model", vtk: "VTK model", vtp: "VTK PolyData",
     pcd: "Point cloud", xyz: "XYZ point cloud", vox: "MagicaVoxel model", usd: "USD model",
     usda: "USD ASCII model", usdc: "USD binary model", usdz: "USDZ model", json: "Three.js scene",
+    demo3d: "Demo3D project", raw3d: "RAW3D scene",
   } as Record<string, string>)[extension(path)] ?? "3D model";
 }
 
@@ -116,14 +118,15 @@ function objectProperties(object: any, hit?: any): PropertySection[] {
   if (!object) return [];
   object.updateWorldMatrix?.(true, false);
   const position = object.getWorldPosition ? object.getWorldPosition(object.position.clone()) : object.position;
-  const inventor = object.userData?.inventor ?? {};
+  const metadata = object.userData?.inventor ?? object.userData?.raw3d ?? object.userData?.demo3d ?? {};
+  const metadataTitle = object.userData?.inventor ? "Inventor metadata" : object.userData?.raw3d ? "RAW3D metadata" : "Demo3D metadata";
   const primary = [
-    { name: "Name", value: object.name || inventor.name || "Unnamed object" },
-    { name: "Type", value: inventor.kind ? cleanName(inventor.kind) : object.type },
-    { name: "Source", value: inventor.sourcePath ?? "Current document" },
+    { name: "Name", value: object.name || metadata.name || "Unnamed object" },
+    { name: "Type", value: metadata.kind ? cleanName(metadata.kind) : object.type },
+    { name: "Source", value: metadata.sourcePath ?? "Current document" },
     { name: "Visible", value: object.visible ? "Yes" : "No" },
   ];
-  const metadata = Object.entries(inventor)
+  const metadataRows = Object.entries(metadata)
     .filter(([key, value]) => !["kind", "sourcePath", "stats"].includes(key) && typeof value !== "function")
     .slice(0, 18)
     .map(([name, value]) => ({ name: cleanName(name), value: summary(value) }));
@@ -148,7 +151,7 @@ function objectProperties(object: any, hit?: any): PropertySection[] {
   ] : [];
   return [
     { title: "Object", rows: primary },
-    ...(metadata.length ? [{ title: "Inventor metadata", rows: metadata }] : []),
+    ...(metadataRows.length ? [{ title: metadataTitle, rows: metadataRows }] : []),
     { title: "Geometry", rows: geometryRows },
     { title: "Transform", rows: transform },
     ...(selection.length ? [{ title: "Selection", rows: selection }] : []),
@@ -162,10 +165,10 @@ function IconForKind({ kind }: { kind: string }) {
 }
 
 function buildTree(object: any, prefix = "root", depth = 0): TreeItem {
-  const kind = cleanName(object.userData?.inventor?.kind ?? object.type ?? "Object");
+  const kind = cleanName(object.userData?.inventor?.kind ?? object.userData?.raw3d?.kind ?? object.userData?.demo3d?.kind ?? object.type ?? "Object");
   return {
     id: `${prefix}-${object.id}`,
-    label: object.name || object.userData?.inventor?.name || kind,
+    label: object.name || object.userData?.inventor?.name || object.userData?.raw3d?.name || object.userData?.demo3d?.name || kind,
     kind,
     object,
     children: depth > 7 ? [] : (object.children ?? [])
@@ -345,7 +348,9 @@ async function loadThreeModel(runtime: CadRuntime, file: File, files: File[]): P
   let animations: any[] = [];
 
   try {
-    if (format === "glb" || format === "gltf") {
+    if (format === "demo3d" || format === "raw3d") {
+      model = await loadDemo3DFile(file, THREE);
+    } else if (format === "glb" || format === "gltf") {
       const loader = new runtime.GLTFLoader(manager);
       loader.setMeshoptDecoder(runtime.MeshoptDecoder);
       const result = await loader.loadAsync(path);
@@ -410,7 +415,13 @@ async function loadThreeModel(runtime: CadRuntime, file: File, files: File[]): P
     model.name ||= file.name;
     model.animations = animations.length ? animations : model.animations ?? [];
     model.userData ||= {};
-    model.userData.inventor ||= { kind: kindFor(path), sourcePath: path };
+    if (format === "raw3d") {
+      model.userData.raw3d = { ...model.userData.raw3d, kind: kindFor(path), sourcePath: path };
+    } else if (format === "demo3d") {
+      model.userData.demo3d = { ...model.userData.demo3d, kind: kindFor(path), sourcePath: path };
+    } else {
+      model.userData.inventor ||= { kind: kindFor(path), sourcePath: path };
+    }
     return { model, objectUrls: [...objectUrls.values()] };
   } catch (error) {
     for (const url of objectUrls.values()) URL.revokeObjectURL(url);
@@ -680,7 +691,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         const releaseModel = () => {
           if (!engine.model) return;
           scene.remove(engine.model);
-          InventorThree.disposeInventorThreeGroup?.(engine.model);
+          if (!disposeDemo3DModel(engine.model)) InventorThree.disposeInventorThreeGroup?.(engine.model);
           for (const url of engine.objectUrls ?? []) URL.revokeObjectURL(url);
           engine.objectUrls = [];
           engine.model = null;
@@ -712,7 +723,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           setStatus("Ready");
         };
 
-        const directFiles = files.filter((file) => isThreeModelFile(file.name));
+        const directFiles = files.filter((file) => isDirectModelFile(file.name));
         if (directFiles.length) {
           const rootOptions = directFiles.map((file) => ({ path: filePath(file), label: filePath(file), kind: kindFor(file.name) }));
           setRoots(rootOptions);
@@ -733,7 +744,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
             releaseModel();
             const loaded = await loadThreeModel(runtime, file, files);
             if (!isCurrent()) {
-              InventorThree.disposeInventorThreeGroup?.(loaded.model);
+              if (!disposeDemo3DModel(loaded.model)) InventorThree.disposeInventorThreeGroup?.(loaded.model);
               for (const url of loaded.objectUrls) URL.revokeObjectURL(url);
               return;
             }

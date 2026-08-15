@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "A private, browser-based viewer for Autodesk Inventor, AutoCAD and packaged CAD workspaces.",
+  "description": "A private, browser-based viewer for Autodesk Inventor, AutoCAD, Demo3D and common 3D formats.",
   "license": "UNLICENSED",
   "scripts": {
     "dev": "vite",
@@ -13,6 +13,7 @@
     "bundle:vendor": "node scripts/build-vendor.mjs"
   },
   "dependencies": {
+    "@jfk-solutions/demo3d-file-format": "^1.8.0",
     "lucide-react": "^0.468.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
