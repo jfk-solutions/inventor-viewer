@@ -2,6 +2,8 @@ export const CAD_MODEL_EXTENSIONS = ["ipt", "iam", "idw", "ipn", "ide", "dwg", "
 
 export const DEMO3D_MODEL_EXTENSIONS = ["demo3d", "raw3d"] as const;
 
+export const STEP_MODEL_EXTENSIONS = ["step", "stp"] as const;
+
 export const THREE_MODEL_EXTENSIONS = [
   "glb", "gltf", "obj", "stl", "ply", "fbx", "3mf", "amf", "dae", "3ds",
   "wrl", "vrml", "wrz", "vtk", "vtp", "pcd", "xyz", "vox", "usd", "usda", "usdc",
@@ -14,10 +16,10 @@ export const THREE_RESOURCE_EXTENSIONS = [
   "bin", "mtl", "png", "jpg", "jpeg", "webp", "avif", "bmp", "gif", "tga", "dds",
 ] as const;
 
-const modelExtensions = new Set<string>([...CAD_MODEL_EXTENSIONS, ...THREE_MODEL_EXTENSIONS, ...DEMO3D_MODEL_EXTENSIONS]);
+const modelExtensions = new Set<string>([...CAD_MODEL_EXTENSIONS, ...THREE_MODEL_EXTENSIONS, ...DEMO3D_MODEL_EXTENSIONS, ...STEP_MODEL_EXTENSIONS]);
 const acceptedExtensions = new Set<string>([...modelExtensions, ...THREE_RESOURCE_EXTENSIONS]);
 const threeModelExtensions = new Set<string>(THREE_MODEL_EXTENSIONS);
-const directModelExtensions = new Set<string>([...THREE_MODEL_EXTENSIONS, ...DEMO3D_MODEL_EXTENSIONS]);
+const directModelExtensions = new Set<string>([...THREE_MODEL_EXTENSIONS, ...DEMO3D_MODEL_EXTENSIONS, ...STEP_MODEL_EXTENSIONS]);
 
 export const ACCEPTED_FILE_TYPES = [...acceptedExtensions].map((value) => `.${value}`).join(",");
 

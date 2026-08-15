@@ -30,7 +30,9 @@ export type CadRuntime = {
   MeshoptDecoder: any;
   Inventor: any;
   InventorThree: any;
+  InventorStep: any;
   Acad: any;
+  loadOpenCascade: () => Promise<any>;
 };
 
 let runtimePromise: Promise<CadRuntime> | undefined;

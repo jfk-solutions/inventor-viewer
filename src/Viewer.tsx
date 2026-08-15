@@ -29,6 +29,7 @@ import { BrandIcon } from "./Brand";
 import { disposeDemo3DModel, loadDemo3DFile } from "./demo3d";
 import { loadCadRuntime, type CadRuntime } from "./runtime";
 import { ACCEPTED_FILE_TYPES, fileExtension, isDirectModelFile } from "./formats";
+import { loadStepModel } from "./step";
 
 type ViewerProps = {
   files: File[];
@@ -41,9 +42,10 @@ type ViewMode = "linear" | "perspective";
 type ToolMode = "move" | "select";
 type TreeItem = { id: string; label: string; kind: string; object: any; children: TreeItem[] };
 type PropertySection = { title: string; rows: { name: string; value: string }[] };
-type ExportFormat = "glb" | "gltf" | "obj" | "stl" | "ply" | "usdz";
+type ExportFormat = "step" | "glb" | "gltf" | "obj" | "stl" | "ply" | "usdz";
 
 const EXPORT_FORMATS: { format: ExportFormat; label: string; description: string }[] = [
+  { format: "step", label: "STEP", description: "Exact AP242 CAD solids and assemblies" },
   { format: "glb", label: "GLB", description: "Binary glTF with materials and textures" },
   { format: "gltf", label: "glTF", description: "JSON glTF with embedded resources" },
   { format: "obj", label: "OBJ", description: "Mesh and line geometry" },
@@ -54,6 +56,18 @@ const EXPORT_FORMATS: { format: ExportFormat; label: string; description: string
 
 const IMPRINT_URL = "https://github.com/jfk-solutions/.github/blob/main/profile/imprint.md";
 const PRIVACY_URL = `${import.meta.env.BASE_URL}datenschutz.html`;
+
+const STEP_PHASE_LABELS: Record<string, string> = {
+  "resolving-documents": "Resolving components",
+  "locating-payloads": "Locating exact geometry",
+  "decoding-asm": "Decoding CAD solids",
+  "loading-kernel": "Loading STEP engine",
+  "building-geometry": "Building exact surfaces",
+  "building-topology": "Building solid topology",
+  "validating-shapes": "Validating solids",
+  "building-assembly": "Building assembly",
+  "writing-step": "Writing STEP file",
+};
 
 function extension(path: string) {
   return fileExtension(path);
@@ -68,6 +82,7 @@ function kindFor(path: string) {
     wrl: "VRML model", vrml: "VRML model", vtk: "VTK model", vtp: "VTK PolyData",
     pcd: "Point cloud", xyz: "XYZ point cloud", vox: "MagicaVoxel model", usd: "USD model",
     usda: "USD ASCII model", usdc: "USD binary model", usdz: "USDZ model", json: "Three.js scene",
+    step: "STEP model", stp: "STEP model",
     demo3d: "Demo3D project", raw3d: "RAW3D scene",
   } as Record<string, string>)[extension(path)] ?? "3D model";
 }
@@ -344,7 +359,12 @@ async function decompressGzipText(file: File) {
   return new Response(decompressed).text();
 }
 
-async function loadThreeModel(runtime: CadRuntime, file: File, files: File[]): Promise<LoadedThreeModel> {
+async function loadThreeModel(
+  runtime: CadRuntime,
+  file: File,
+  files: File[],
+  onProgress?: (status: string, progress: number) => void,
+): Promise<LoadedThreeModel> {
   const { THREE } = runtime;
   const path = filePath(file).replace(/\\/g, "/");
   const format = extension(path);
@@ -353,7 +373,11 @@ async function loadThreeModel(runtime: CadRuntime, file: File, files: File[]): P
   let animations: any[] = [];
 
   try {
-    if (format === "demo3d" || format === "raw3d") {
+    if (format === "step" || format === "stp") {
+      const result = await loadStepModel(runtime, file, manager, onProgress);
+      model = result.model;
+      animations = result.animations;
+    } else if (format === "demo3d" || format === "raw3d") {
       model = await loadDemo3DFile(file, THREE);
     } else if (format === "glb" || format === "gltf") {
       const loader = new runtime.GLTFLoader(manager);
@@ -441,6 +465,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<any>(null);
   const rootLoaderRef = useRef<((path: string) => Promise<void>) | null>(null);
+  const exportControllerRef = useRef<AbortController | null>(null);
   const [status, setStatus] = useState("Preparing viewer…");
   const [progress, setProgress] = useState(4);
   const [error, setError] = useState<string | null>(null);
@@ -697,6 +722,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         engine.frame = frameObject;
 
         const releaseModel = () => {
+          engine.stepSource = null;
           if (!engine.model) return;
           scene.remove(engine.model);
           if (!disposeDemo3DModel(engine.model)) InventorThree.disposeInventorThreeGroup?.(engine.model);
@@ -706,10 +732,11 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         };
         engine.releaseModel = releaseModel;
 
-        const presentModel = (model: any, objectUrls: string[] = []) => {
+        const presentModel = (model: any, objectUrls: string[] = [], stepSource: { workspace: any; path: string } | null = null) => {
           releaseModel();
           engine.model = model;
           engine.objectUrls = objectUrls;
+          engine.stepSource = stepSource;
           scene.add(model);
           frameObject(model);
           model.traverse((object: any) => {
@@ -750,7 +777,11 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
             setStatus(`Opening ${path}…`);
             setProgress(35);
             releaseModel();
-            const loaded = await loadThreeModel(runtime, file, files);
+            const loaded = await loadThreeModel(runtime, file, files, (nextStatus, nextProgress) => {
+              if (!isCurrent()) return;
+              setStatus(nextStatus);
+              setProgress(nextProgress);
+            });
             if (!isCurrent()) {
               if (!disposeDemo3DModel(loaded.model)) InventorThree.disposeInventorThreeGroup?.(loaded.model);
               for (const url of loaded.objectUrls) URL.revokeObjectURL(url);
@@ -855,7 +886,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
               InventorThree.disposeInventorThreeGroup?.(model);
               return;
             }
-            presentModel(model);
+            presentModel(model, [], /\.(?:ipt|iam)$/i.test(path) ? { workspace, path } : null);
           } catch (cause) {
             if (!isCurrent()) return;
             throw cause;
@@ -876,6 +907,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
     start();
     return () => {
       disposed = true;
+      exportControllerRef.current?.abort();
       rootController?.abort();
       rootLoaderRef.current = null;
       cancelAnimationFrame(animation);
@@ -983,6 +1015,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
   };
 
   const switchRoot = async (path: string) => {
+    exportControllerRef.current?.abort();
     try { await rootLoaderRef.current?.(path); }
     catch (cause) {
       console.error(cause);
@@ -997,13 +1030,35 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
     setExportMenu(false);
     setExporting(format);
     setExportNotice(null);
+    const exportController = format === "step" ? new AbortController() : null;
+    if (exportController) exportControllerRef.current = exportController;
     try {
       engine.model.updateMatrixWorld(true);
       const runtime = engine.runtime as CadRuntime;
       let data: string | ArrayBuffer | ArrayBufferView | null;
       let mimeType: string;
+      let downloadName = `${exportBaseName(title)}.${format}`;
 
-      if (format === "glb" || format === "gltf") {
+      if (format === "step") {
+        const source = engine.stepSource;
+        if (!source) throw new Error("Exact STEP export is available only for Inventor parts and assemblies.");
+        const result = await runtime.InventorStep.exportInventorWorkspaceToStep(source.workspace, source.path, {
+          schema: "AP242",
+          assemblyMode: "preserve",
+          signal: exportController!.signal,
+          loadOpenCascade: runtime.loadOpenCascade,
+          onProgress: (event: { phase: string; completed: number; total: number; path?: string }) => {
+            const label = STEP_PHASE_LABELS[event.phase] ?? cleanName(event.phase);
+            const count = event.total > 1 ? ` · ${event.completed.toLocaleString()}/${event.total.toLocaleString()}` : "";
+            setExportNotice(`${label}${count}`);
+          },
+        });
+        data = result.bytes;
+        mimeType = "model/step";
+        downloadName = result.fileName;
+        const { solids, occurrences } = result.statistics;
+        setExportNotice(`STEP download created · ${solids.toLocaleString()} solid${solids === 1 ? "" : "s"}${occurrences ? ` · ${occurrences.toLocaleString()} occurrences` : ""}`);
+      } else if (format === "glb" || format === "gltf") {
         const gltfData = await new runtime.GLTFExporter().parseAsync(engine.model, {
           binary: format === "glb",
           onlyVisible: false,
@@ -1027,12 +1082,15 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
       }
 
       if (data == null) throw new Error(`The model contains no geometry supported by ${format.toUpperCase()}.`);
-      downloadBlob(new Blob([data as BlobPart], { type: mimeType }), `${exportBaseName(title)}.${format}`);
-      setExportNotice(`${format === "gltf" ? "glTF" : format.toUpperCase()} download created`);
+      downloadBlob(new Blob([data as BlobPart], { type: mimeType }), downloadName);
+      if (format !== "step") setExportNotice(`${format === "gltf" ? "glTF" : format.toUpperCase()} download created`);
     } catch (cause) {
       console.error(cause);
-      setExportNotice(`Export failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+      setExportNotice(exportController?.signal.aborted
+        ? "STEP export cancelled"
+        : `Export failed: ${cause instanceof Error ? cause.message : String(cause)}`);
     } finally {
+      if (exportControllerRef.current === exportController) exportControllerRef.current = null;
       setExporting(null);
     }
   };
@@ -1078,14 +1136,14 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
               {exporting ? <LoaderCircle className="spin" size={16} /> : <Download size={16} />}<span>{exporting ? `Exporting ${exporting === "gltf" ? "glTF" : exporting.toUpperCase()}…` : "Export"}</span><ChevronDown size={13} />
             </button>
             {exportMenu && <div className="export-menu" role="menu" aria-label="Export model">
-              <div className="export-menu-heading"><strong>Export loaded model</strong><span>Geometry uses viewer units</span></div>
-              {EXPORT_FORMATS.map((option) => <button key={option.format} type="button" role="menuitem" onClick={() => exportModel(option.format)}>
+              <div className="export-menu-heading"><strong>Export loaded model</strong><span>STEP preserves exact CAD units; mesh formats use viewer units</span></div>
+              {EXPORT_FORMATS.filter((option) => option.format !== "step" || Boolean(engineRef.current?.stepSource)).map((option) => <button key={option.format} type="button" role="menuitem" onClick={() => exportModel(option.format)}>
                 <b>{option.label}</b><span>{option.description}</span>
               </button>)}
-              <div className="export-menu-note">STEP export requires the original CAD kernel and is not available from the rendered mesh.</div>
+              <div className="export-menu-note">Exact STEP export is available for Inventor IPT and IAM documents with native B-Rep geometry. It runs locally in this browser.</div>
             </div>}
           </div>
-          {exportNotice && <div className={`export-notice ${exportNotice.startsWith("Export failed") ? "error" : ""}`} role="status"><span>{exportNotice}</span><button type="button" onClick={() => setExportNotice(null)} aria-label="Dismiss export message"><X size={13} /></button></div>}
+          {exportNotice && <div className={`export-notice ${exportNotice.startsWith("Export failed") ? "error" : ""}`} role="status"><span>{exportNotice}</span><button type="button" onClick={() => { if (exporting === "step") exportControllerRef.current?.abort(); else setExportNotice(null); }} aria-label={exporting === "step" ? "Cancel STEP export" : "Dismiss export message"}><X size={13} /></button></div>}
           <a className="viewer-imprint" href={PRIVACY_URL} target="_blank" rel="noreferrer">Datenschutz</a>
           <a className="viewer-imprint" href={IMPRINT_URL} target="_blank" rel="noreferrer">Impressum</a>
           <span className="header-separator" />

@@ -26,7 +26,21 @@ import { XYZLoader } from "three/examples/jsm/loaders/XYZLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import * as Inventor from "../../inventor-file-format/dist/index.js";
 import * as InventorThree from "../../inventor-file-format/dist/three/index.js";
+import * as InventorStep from "../../inventor-file-format/dist/step/index.js";
 import * as Acad from "../../../node-projects/acd-ts/dist/index.js";
+
+let openCascadePromise;
+
+function loadOpenCascade() {
+  const moduleUrl = new URL("./opencascade/opencascade.full.js", import.meta.url);
+  const wasmUrl = new URL("./opencascade/opencascade.full.wasm", import.meta.url);
+  openCascadePromise ??= import(moduleUrl.href).then(({ default: initialize }) => new initialize({
+    locateFile(path) {
+      return path.endsWith(".wasm") ? wasmUrl.href : path;
+    },
+  }));
+  return openCascadePromise;
+}
 
 export {
   THREE, OrbitControls,
@@ -34,5 +48,5 @@ export {
   AMFLoader, ColladaLoader, DDSLoader, FBXLoader, GLTFLoader, MTLLoader, OBJLoader,
   PCDLoader, PLYLoader, STLLoader, TDSLoader, TGALoader, ThreeMFLoader, USDLoader,
   VOXLoader, buildVOXMesh, VRMLLoader, VTKLoader, XYZLoader, MeshoptDecoder,
-  Inventor, InventorThree, Acad,
+  Inventor, InventorThree, InventorStep, Acad, loadOpenCascade,
 };

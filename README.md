@@ -6,6 +6,8 @@ The repository is designed for GitHub Pages. The complete minimized CAD runtime 
 
 ## Supported files
 
+See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all accepted model extensions, companion resource files and common formats that do not yet have a loader.
+
 | Format | Support |
 | --- | --- |
 | `.ipt` | Inventor parts, saved display geometry, materials and iProperties exposed by the parser |
@@ -15,6 +17,7 @@ The repository is designed for GitHub Pages. The complete minimized CAD runtime 
 | `.ide` | Inventor iFeature documents |
 | `.dwg` | AutoCAD model space through `@node-projects/acad-ts` |
 | `.dxf` | ASCII and binary DXF; common line, arc, circle, polyline, point and 3D-face entities |
+| `.step`, `.stp` | STEP parts and assemblies, tessellated locally through the lazy-loaded OpenCascade kernel |
 | `.zip` | Packaged Inventor workspaces, including an IAM and all linked documents, textures and project files |
 | `.faf` | Inventor Factory Asset packages |
 | `.glb`, `.gltf` | glTF 2.0 scenes, materials, textures and animations; local sidecar resources can be selected together |
@@ -40,7 +43,7 @@ For assemblies, package the IAM and all referenced documents into one ZIP while 
 - **Linear / Perspective** — switch between an orthographic engineering view and a perspective camera.
 - **Fit** — frame the complete model. Double-click geometry to move the camera target to that point.
 - **View cube** — jump to Top, Front or Right; Home returns to an isometric view.
-- **Export** — download the loaded model as GLB, glTF, OBJ, binary STL, binary PLY or USDZ. STEP is not available because the viewer operates on rendered triangle meshes rather than CAD solids.
+- **Export** — download the loaded model as GLB, glTF, OBJ, binary STL, binary PLY or USDZ. Inventor IPT and IAM documents with native B-Rep geometry can also be exported as exact AP242 STEP; OpenCascade runs locally in the browser and is loaded only when requested.
 
 Keyboard shortcuts: `M` Move, `S` Select, `1` Linear, `2` Perspective, `F` Fit, and `Escape` clear selection.
 

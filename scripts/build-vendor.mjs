@@ -10,6 +10,8 @@ const outfile = path.join(root, "public", "vendor", "cad-viewer-runtime.min.js")
 const versionFile = path.join(root, "src", "runtime-version.ts");
 const bzipSource = path.join(root, "..", "inventor-file-format", "node_modules", "@digitaldefiance", "bzip2-wasm", "bzip2-1.0.8");
 const bzipTarget = path.join(root, "public", "vendor", "bzip2-wasm", "bzip2-1.0.8");
+const openCascadePackage = path.join(root, "..", "inventor-file-format", "node_modules", "opencascade.js");
+const openCascadeTarget = path.join(root, "public", "vendor", "opencascade");
 
 await mkdir(path.dirname(outfile), { recursive: true });
 await build({
@@ -22,7 +24,7 @@ await build({
   minify: true,
   sourcemap: false,
   legalComments: "eof",
-  external: ["node:module", "node:fs/promises"],
+  external: ["node:module", "node:fs/promises", "opencascade.js", "opencascade.js/*"],
   loader: { ".wasm": "dataurl" },
 });
 
@@ -39,6 +41,13 @@ await build({
   legalComments: "eof",
 });
 await copyFile(path.join(bzipSource, "bzip2.wasm"), path.join(bzipTarget, "bzip2.wasm"));
+
+// Keep the LGPL CAD kernel as a separately loaded, replaceable module instead
+// of embedding its roughly 50 MiB WASM binary in the main viewer runtime.
+await mkdir(openCascadeTarget, { recursive: true });
+await copyFile(path.join(openCascadePackage, "dist", "opencascade.full.js"), path.join(openCascadeTarget, "opencascade.full.js"));
+await copyFile(path.join(openCascadePackage, "dist", "opencascade.full.wasm"), path.join(openCascadeTarget, "opencascade.full.wasm"));
+await copyFile(path.join(openCascadePackage, "LICENSE"), path.join(openCascadeTarget, "LICENSE"));
 
 // Generated template literals can inherit trailing spaces from upstream shader
 // sources. Keep the committed browser bundle clean and reproducible.
