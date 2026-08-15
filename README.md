@@ -46,6 +46,7 @@ For assemblies, package the IAM and all referenced documents into one ZIP while 
 - **Move** — left-drag to orbit, right-drag to pan and scroll to zoom.
 - **Select** — click geometry or an item in the model tree to inspect it in the property grid. Right-drag and scroll remain available.
 - **Linear / Perspective** — switch between an orthographic engineering view and a perspective camera.
+- **Two-sided** — render both sides of mesh surfaces for interior inspection, while preserving each format's original material settings when disabled.
 - **Fit** — frame the complete model. Double-click geometry to move the camera target to that point.
 - **View cube** — jump to Top, Front or Right; Home returns to an isometric view.
 - **Export** — download the loaded model as GLB, glTF, OBJ, binary STL, binary PLY or USDZ. Inventor IPT and IAM documents with native B-Rep geometry can also be exported as exact AP242 STEP; OpenCascade runs locally in the browser and is loaded only when requested.

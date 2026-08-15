@@ -481,6 +481,24 @@ async function loadThreeModel(
   }
 }
 
+function setModelTwoSided(model: any, enabled: boolean, THREE: any, originalSides: WeakMap<object, number>) {
+  const visited = new Set<object>();
+  model?.traverse?.((object: any) => {
+    if (!object.isMesh || !object.material) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of materials) {
+      if (!material?.isMaterial || visited.has(material)) continue;
+      visited.add(material);
+      if (!originalSides.has(material)) originalSides.set(material, material.side);
+      const nextSide = enabled ? THREE.DoubleSide : originalSides.get(material);
+      if (typeof nextSide === "number" && material.side !== nextSide) {
+        material.side = nextSide;
+        material.needsUpdate = true;
+      }
+    }
+  });
+}
+
 export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<any>(null);
@@ -497,6 +515,9 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("perspective");
+  const [twoSided, setTwoSided] = useState(false);
+  const twoSidedRef = useRef(twoSided);
+  twoSidedRef.current = twoSided;
   const [toolMode, setToolMode] = useState<ToolMode>("move");
   const [openMenu, setOpenMenu] = useState(false);
   const [exportMenu, setExportMenu] = useState(false);
@@ -622,6 +643,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           cameraDirection: new THREE.Vector3(),
           centerOffset: new THREE.Vector3(),
           modelSize: 10,
+          originalMaterialSides: new WeakMap<object, number>(),
         };
         engineRef.current = engine;
 
@@ -758,6 +780,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           engine.objectUrls = objectUrls;
           engine.stepSource = stepSource;
           scene.add(model);
+          setModelTwoSided(model, twoSidedRef.current, THREE, engine.originalMaterialSides);
           frameObject(model);
           model.traverse((object: any) => {
             if (object.isPoints && object.material?.isPointsMaterial) {
@@ -942,6 +965,12 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
       engineRef.current = null;
     };
   }, [files, clearSelection]);
+
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine?.model) return;
+    setModelTwoSided(engine.model, twoSided, engine.THREE, engine.originalMaterialSides);
+  }, [twoSided]);
 
   useEffect(() => {
     const engine = engineRef.current;
@@ -1195,6 +1224,12 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           <div className="segmented view-switch">
             <button type="button" className={viewMode === "linear" ? "active" : ""} onClick={() => setViewMode("linear")}><Ruler size={16} />Linear</button>
             <button type="button" className={viewMode === "perspective" ? "active" : ""} onClick={() => setViewMode("perspective")}><Box size={16} />Perspective</button>
+          </div>
+          <span className="toolbar-divider" />
+          <div className="segmented surface-switch">
+            <button type="button" className={twoSided ? "active" : ""} aria-pressed={twoSided} onClick={() => setTwoSided((enabled) => !enabled)} title="Render front and back faces for interior inspection">
+              <Layers3 size={16} /><span>Two-sided</span>
+            </button>
           </div>
         </div>
 
