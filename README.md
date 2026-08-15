@@ -16,7 +16,7 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.ipn` | Inventor presentations |
 | `.ide` | Inventor iFeature documents |
 | `.sldprt` | SolidWorks parts with saved display-list tessellation, previews, configurations and custom properties |
-| `.sldasm` | SolidWorks assemblies with workspace reference discovery and saved display-list tessellation |
+| `.sldasm` | SolidWorks assemblies with recursively resolved, transformed occurrences and saved display-list tessellation |
 | `.slddrw` | SolidWorks drawings with saved display geometry or embedded preview fallback |
 | `.dwg` | AutoCAD model space through `@node-projects/acad-ts` |
 | `.dxf` | ASCII and binary DXF; common line, arc, circle, polyline, point and 3D-face entities |

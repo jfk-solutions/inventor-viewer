@@ -522,11 +522,11 @@ function setModelTwoSided(model: any, enabled: boolean, THREE: any, originalSide
   });
 }
 
-async function createSolidWorksModel(runtime: CadRuntime, document: any) {
+async function createSolidWorksModel(runtime: CadRuntime, document: any, renderScene?: any) {
   const { THREE, SolidWorksThree } = runtime;
-  const model = SolidWorksThree.createSolidWorksThreeGroup(document, { mergeFaces: true });
+  const model = SolidWorksThree.createSolidWorksThreeGroup(renderScene ?? document, { mergeFaces: true });
   const configuration = document.configurations?.[0];
-  const triangleCount = (document.displayMeshes ?? []).reduce((total: number, mesh: any) => total + (mesh.indices?.length ?? 0) / 3, 0);
+  const triangleCount = renderScene?.triangleCount ?? (document.displayMeshes ?? []).reduce((total: number, mesh: any) => total + (mesh.indices?.length ?? 0) / 3, 0);
   model.userData.solidworksDocument = true;
   model.userData.solidworks = {
     ...document.globalProperties,
@@ -539,7 +539,8 @@ async function createSolidWorksModel(runtime: CadRuntime, document: any) {
     sheets: document.sheets?.length ?? 0,
     displayMeshes: document.displayMeshes?.length ?? 0,
     triangles: triangleCount,
-    diagnostics: document.diagnostics?.length ?? 0,
+    materials: renderScene?.materials?.length ?? document.visualMaterials?.length ?? 0,
+    diagnostics: renderScene?.diagnostics?.length ?? document.diagnostics?.length ?? 0,
   };
   if (triangleCount) return { model, objectUrls: [] as string[] };
 
@@ -928,9 +929,17 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
             releaseModel();
             const document = await solidWorksWorkspace.openDocument(path);
             if (!isCurrent()) return;
-            setStatus(document.displayMeshes?.length ? "Preparing SolidWorks geometry…" : "Loading saved SolidWorks preview…");
+            let renderScene: any;
+            if (document.type === "assembly") {
+              setStatus("Resolving linked SolidWorks components…");
+              setProgress(70);
+              renderScene = await solidWorksWorkspace.buildRenderScene(path, { signal: controller.signal });
+              if (!isCurrent()) return;
+            }
+            const hasGeometry = renderScene?.triangleCount || document.displayMeshes?.length;
+            setStatus(hasGeometry ? "Preparing SolidWorks geometry…" : "Loading saved SolidWorks preview…");
             setProgress(82);
-            const loaded = await createSolidWorksModel(runtime, document);
+            const loaded = await createSolidWorksModel(runtime, document, renderScene);
             if (!isCurrent()) {
               loaded.model.userData.solidworksPreviewTexture?.dispose?.();
               SolidWorksThree.disposeSolidWorksThreeGroup?.(loaded.model);

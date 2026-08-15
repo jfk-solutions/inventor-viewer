@@ -52,7 +52,7 @@ Links in **Open-source information or library** are implementation leads, not de
 | `.pcd` | Point Cloud Data | Point Cloud Library (PCL) | Yes | Open | Current Three.js loader; [PCL](https://github.com/PointCloudLibrary/pcl) |
 | `.ply` | Polygon File Format | Stanford 3D scanning and mesh ecosystem | Yes | Open | Current Three.js loader; [Assimp](https://github.com/assimp/assimp) |
 | `.raw3d` | RAW3D scene | Emulate3D / Demo3D | Yes | Closed | Current MIT-licensed [demo3d-file-format](https://github.com/JFK-Solutions/demo3d-file-format) reader |
-| `.sldasm`, `.sldprt`, `.slddrw` | SolidWorks assembly, part and drawing | Dassault Systèmes SolidWorks | Yes | Closed | Current MIT-licensed `solidworks-file-format` reader for modern and legacy containers, saved display tessellation, metadata and previews |
+| `.sldasm`, `.sldprt`, `.slddrw` | SolidWorks assembly, part and drawing | Dassault Systèmes SolidWorks | Yes | Closed | Current MIT-licensed `solidworks-file-format` reader for modern and legacy containers, transformed assembly occurrences, saved display tessellation, native materials, metadata and previews |
 | `.step`, `.stp` | STEP (ISO 10303) | Autodesk Fusion and most mechanical CAD systems | Yes | Open | Current [Open CASCADE Technology](https://github.com/Open-Cascade-SAS/OCCT) reader and tessellator |
 | `.stl` | Stereolithography mesh | Autodesk Fusion, Onshape, 3D printing, scanning and CAD tools | Yes | Open | Current Three.js loader; [Assimp](https://github.com/assimp/assimp) |
 | `.usd` | Universal Scene Description | Pixar USD ecosystem | Yes | Open | Current Three.js loader; official [OpenUSD](https://github.com/PixarAnimationStudios/OpenUSD) |
