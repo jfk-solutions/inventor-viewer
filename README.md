@@ -77,7 +77,7 @@ npm run bundle:vendor
 npm run build
 ```
 
-`scripts/runtime-entry.mjs` combines Inventor parsing, the Three.js adapter, `acad-ts`, Three.js and OrbitControls. `scripts/build-vendor.mjs` creates a single minified ES module. Commit the updated `public/vendor/cad-viewer-runtime.min.js` whenever either local library changes.
+`scripts/runtime-entry.mjs` combines Inventor parsing, the Three.js adapter, `acad-ts`, Three.js and OrbitControls. `scripts/build-vendor.mjs` creates the minified runtime, copies the minified BZip2/WASM decoder required by serialized Inventor graphics, and updates `src/runtime-version.ts` with its content hash. Commit the generated runtime, decoder directory, and version file whenever either local library changes; the hash prevents browsers and GitHub Pages from reusing an older CAD runtime.
 
 ## GitHub Pages
 

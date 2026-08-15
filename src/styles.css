@@ -33,13 +33,8 @@ a { color: inherit; text-decoration: none; }
 
 .site-nav { height: 82px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(19,32,36,.12); }
 .brand { display: inline-flex; align-items: center; gap: 10px; }
-.brand-mark { display: grid; grid-template-columns: repeat(3, 15px); gap: 2px; height: 31px; align-items: stretch; }
-.brand-mark span { display: grid; place-items: center; background: var(--ink); color: #fff; font: 800 10px/1 "Segoe UI Variable", sans-serif; }
-.brand-mark span:nth-child(2) { margin-top: 5px; background: var(--teal); }
-.brand-mark span:nth-child(3) { margin-top: 10px; background: var(--gold); color: var(--ink); }
-.brand-copy { display: grid; line-height: 1; }
-.brand-copy strong { font: 800 18px/1 "Segoe UI Variable", sans-serif; letter-spacing: .03em; }
-.brand-copy small { margin-top: 3px; font-size: 10px; text-transform: uppercase; letter-spacing: .18em; color: var(--muted); }
+.brand-symbol { width: 42px; height: 30px; display: block; object-fit: contain; }
+.brand-wordmark { width: 142px; height: auto; display: block; }
 .nav-links { display: flex; align-items: center; gap: 34px; font-size: 13px; font-weight: 600; }
 .nav-links a { transition: color .2s; }
 .nav-links a:hover { color: var(--teal); }
@@ -115,7 +110,8 @@ a { color: inherit; text-decoration: none; }
 .viewer-shell.left-open.right-open { grid-template-columns: 252px 1fr 286px; }
 .viewer-header { grid-column: 1 / -1; z-index: 20; display: grid; grid-template-columns: 252px 1fr auto; align-items: stretch; height: 48px; background: #1b2427; border-bottom: 1px solid #303b3e; box-shadow: 0 2px 12px rgba(0,0,0,.2); }
 .viewer-brand { display: flex; align-items: center; gap: 9px; padding: 0 14px; border: 0; border-right: 1px solid #303b3e; background: transparent; color: #eef3f4; font: 700 12px "Manrope"; cursor: pointer; }
-.viewer-mark { background: var(--gold); color: #162124; padding: 5px 6px 4px; font: 800 9px "Manrope"; letter-spacing: .08em; }
+.viewer-brand-logo { width: 29px; height: 21px; object-fit: contain; }
+.viewer-brand-copy { white-space: nowrap; }
 .document-title { position: relative; display: flex; align-items: center; gap: 9px; min-width: 0; padding: 0 14px; }
 .document-title > svg { color: #70bdb2; flex: 0 0 auto; }
 .document-title > button { min-width: 0; max-width: min(45vw, 520px); display: flex; align-items: center; gap: 7px; border: 0; background: transparent; color: #eef3f4; font-size: 12px; font-weight: 700; cursor: pointer; }
@@ -279,7 +275,7 @@ a { color: inherit; text-decoration: none; }
   .viewer-header { grid-template-columns: 58px 1fr auto; }
   .root-menu { position: fixed; left: 10px; right: 10px; top: 48px; width: auto; max-width: none; max-height: min(76vh, 680px); }
   .viewer-brand { padding: 0 10px; }
-  .viewer-brand > span:last-child { display: none; }
+  .viewer-brand-copy { display: none; }
   .file-meta, .viewer-actions .open-file-button { display: none; }
   .viewer-shell.left-open, .viewer-shell.left-open.right-open { grid-template-columns: 0 1fr 0; }
   .model-panel { position: fixed; left: 0; top: 48px; bottom: 0; width: 252px; z-index: 15; box-shadow: 10px 0 35px rgba(0,0,0,.3); }

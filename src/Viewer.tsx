@@ -24,7 +24,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { DropZone } from "./App";
+import { BrandIcon } from "./Brand";
 import { loadCadRuntime, type CadRuntime } from "./runtime";
 
 type ViewerProps = {
@@ -302,6 +302,8 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
     let animation = 0;
     let resizeObserver: ResizeObserver | undefined;
     let workspace: any;
+    let rootController: AbortController | undefined;
+    let rootGeneration = 0;
 
     const start = async () => {
       try {
@@ -330,8 +332,11 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         controls.dampingFactor = 0.075;
         controls.screenSpacePanning = true;
         controls.zoomToCursor = true;
-        controls.minDistance = 0.001;
-        controls.maxDistance = 1e8;
+        controls.zoomSpeed = 2;
+        controls.minDistance = 0;
+        controls.maxDistance = Infinity;
+        controls.minZoom = 0;
+        controls.maxZoom = Infinity;
         const hemisphere = new THREE.HemisphereLight(0xeaf3f3, 0x263033, 2.2);
         const key = new THREE.DirectionalLight(0xffffff, 3.2);
         key.position.set(8, 12, 7);
@@ -365,31 +370,70 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         const animate = () => {
           if (disposed) return;
           controls.update();
+          if (engine.model && engine.camera === perspective) {
+            const distance = perspective.position.distanceTo(controls.target);
+            const near = Math.max(Math.min(engine.modelSize / 100000, distance / 1000), Number.EPSILON);
+            const far = Math.max(engine.modelSize * 1000, distance + engine.modelSize * 100, 1);
+            if (perspective.near !== near || perspective.far !== far) {
+              perspective.near = near;
+              perspective.far = far;
+              perspective.updateProjectionMatrix();
+            }
+          }
           if (engine.helper) engine.helper.update();
           renderer.render(scene, engine.camera);
           animation = requestAnimationFrame(animate);
         };
         animate();
 
+        const visibleGeometryBounds = (object: any) => {
+          object.updateWorldMatrix(true, true);
+          const bounds = new THREE.Box3();
+          const objectBounds = new THREE.Box3();
+          object.traverseVisible((child: any) => {
+            const geometry = child.geometry;
+            const materialVisible = Array.isArray(child.material)
+              ? child.material.some((material: any) => material?.visible !== false)
+              : child.material?.visible !== false;
+            if (!geometry?.attributes?.position?.count || !materialVisible) return;
+            geometry.computeBoundingBox?.();
+            if (!geometry.boundingBox?.isEmpty()) {
+              objectBounds.copy(geometry.boundingBox).applyMatrix4(child.matrixWorld);
+              bounds.union(objectBounds);
+            }
+          });
+          return bounds;
+        };
+
         const frameObject = (object = engine.model) => {
           if (!object) return;
-          const bounds = new THREE.Box3().setFromObject(object);
+          // Adapter objects can carry conservative/native bounds. Frame from the
+          // actual rendered geometry so scaled Factory/Vault assemblies fit tightly.
+          const bounds = visibleGeometryBounds(object);
           if (bounds.isEmpty()) return;
           const center = bounds.getCenter(new THREE.Vector3());
-          const size = Math.max(bounds.getSize(new THREE.Vector3()).length(), 0.01);
+          const sizeVector = bounds.getSize(new THREE.Vector3());
+          const size = Math.max(sizeVector.length(), 1e-9);
+          const radius = Math.max(size / 2, 1e-9);
           engine.bounds = bounds;
           engine.modelSize = size;
           controls.target.copy(center);
           const direction = new THREE.Vector3(1, 0.72, 1).normalize();
-          perspective.position.copy(center).addScaledVector(direction, size * 1.15);
-          perspective.near = Math.max(size / 100000, 0.0001);
-          perspective.far = Math.max(size * 1000, 1000);
+          const rect = canvas.getBoundingClientRect();
+          const aspect = rect.width / Math.max(rect.height, 1);
+          const verticalFov = THREE.MathUtils.degToRad(perspective.fov);
+          const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspect);
+          const fitFov = Math.min(verticalFov, horizontalFov);
+          const distance = radius / Math.max(Math.sin(fitFov / 2), 0.01) * 1.08;
+          perspective.position.copy(center).addScaledVector(direction, distance);
+          perspective.near = Math.max(size / 100000, 1e-9);
+          perspective.far = Math.max(size * 1000, 10);
           perspective.updateProjectionMatrix();
           linear.position.copy(perspective.position);
-          linear.near = -Math.max(size * 100, 1000);
-          linear.far = Math.max(size * 100, 1000);
-          engine.orthoHeight = size * 1.2;
-          const rect = canvas.getBoundingClientRect();
+          linear.near = -Math.max(size * 100, 10);
+          linear.far = Math.max(size * 100, 10);
+          linear.zoom = 1;
+          engine.orthoHeight = radius * 2.16;
           linear.left = -engine.orthoHeight * rect.width / Math.max(rect.height, 1) / 2;
           linear.right = engine.orthoHeight * rect.width / Math.max(rect.height, 1) / 2;
           linear.top = engine.orthoHeight / 2;
@@ -434,65 +478,86 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
 
         const openRoot = async (path: string) => {
           if (disposed) return;
-          setActiveRoot(path);
-          setTree(null);
-          clearSelection();
-          setError(null);
-          setStatus(`Opening ${path}…`);
-          setProgress(58);
-          if (engine.model) {
-            scene.remove(engine.model);
-            InventorThree.disposeInventorThreeGroup?.(engine.model);
-            engine.model = null;
-          }
+          const generation = ++rootGeneration;
+          rootController?.abort();
+          const controller = new AbortController();
+          rootController = controller;
+          const { signal } = controller;
+          const isCurrent = () => !disposed && !signal.aborted && generation === rootGeneration;
           let model: any;
-          if (/\.dxf$/i.test(path)) {
-            const source = await workspace.provider.open(path);
-            if (!source) throw new Error(`Could not read ${path}.`);
-            const bytes = await source.read(0, source.size);
-            await source.close?.();
-            setStatus("Building DXF geometry…");
-            setProgress(72);
-            model = buildDxfGroup(runtime, bytes).group;
-          } else {
-            const isDwg = /\.dwg$/i.test(path);
-            const document = isDwg ? undefined : await workspace.openDocument(path);
-            setStatus(isDwg ? "Decoding AutoCAD geometry…" : "Resolving linked components…");
-            setProgress(68);
-            const renderScene = isDwg
-              ? await Inventor.createInventorExternalRenderScene(workspace, path)
-              : await Inventor.createInventorRenderScene(workspace, document, { resolveReferences: true, showWireframeFallback: true });
-            setStatus("Preparing materials and geometry…");
-            setProgress(82);
-            let textures: any[] = [];
-            if (!isDwg) {
-              const appearance = await InventorThree.loadInventorAppearanceTextures(renderScene, workspace, {
-                onProgress: (event: any) => event.total && setProgress(82 + (event.completed / event.total) * 8),
-              });
-              textures = appearance.textures;
+
+          try {
+            setActiveRoot(path);
+            setTree(null);
+            clearSelection();
+            setError(null);
+            setStatus(`Opening ${path}…`);
+            setProgress(58);
+            if (engine.model) {
+              scene.remove(engine.model);
+              InventorThree.disposeInventorThreeGroup?.(engine.model);
+              engine.model = null;
             }
-            model = await InventorThree.createInventorThreeGroup(renderScene, {
-              three: THREE,
-              unitScale: 0.01,
-              enhancedMaterials: true,
-              appearanceTextures: textures,
+            if (/\.dxf$/i.test(path)) {
+              const source = await workspace.provider.open(path);
+              if (!source) throw new Error(`Could not read ${path}.`);
+              const bytes = await source.read(0, source.size);
+              await source.close?.();
+              if (!isCurrent()) return;
+              setStatus("Building DXF geometry…");
+              setProgress(72);
+              model = buildDxfGroup(runtime, bytes).group;
+            } else {
+              const isDwg = /\.dwg$/i.test(path);
+              const document = isDwg ? undefined : await workspace.openDocument(path, { signal });
+              if (!isCurrent()) return;
+              setStatus(isDwg ? "Decoding AutoCAD geometry…" : "Resolving linked components…");
+              setProgress(68);
+              const renderScene = isDwg
+                ? await Inventor.createInventorExternalRenderScene(workspace, path)
+                : await Inventor.createInventorRenderScene(workspace, document, { resolveReferences: true, showWireframeFallback: true, signal });
+              if (!isCurrent()) return;
+              setStatus("Preparing materials and geometry…");
+              setProgress(82);
+              let textures: any[] = [];
+              if (!isDwg) {
+                const appearance = await InventorThree.loadInventorAppearanceTextures(renderScene, workspace, {
+                  signal,
+                  onProgress: (event: any) => isCurrent() && event.total && setProgress(82 + (event.completed / event.total) * 8),
+                });
+                textures = appearance.textures;
+              }
+              if (!isCurrent()) return;
+              model = await InventorThree.createInventorThreeGroup(renderScene, {
+                three: THREE,
+                unitScale: 0.01,
+                enhancedMaterials: true,
+                appearanceTextures: textures,
+                signal,
+              });
+            }
+            if (!isCurrent()) {
+              InventorThree.disposeInventorThreeGroup?.(model);
+              return;
+            }
+            engine.model = model;
+            scene.add(model);
+            frameObject(model);
+            setTree(buildTree(model));
+            let objectCount = 0;
+            let triangles = 0;
+            model.traverse((object: any) => {
+              objectCount += 1;
+              if (object.geometry?.index?.count) triangles += Math.floor(object.geometry.index.count / 3);
+              else if (object.isMesh && object.geometry?.attributes?.position?.count) triangles += Math.floor(object.geometry.attributes.position.count / 3);
             });
+            setStats({ objects: objectCount, triangles });
+            setProgress(100);
+            setStatus("Ready");
+          } catch (cause) {
+            if (!isCurrent()) return;
+            throw cause;
           }
-          if (disposed) return;
-          engine.model = model;
-          scene.add(model);
-          frameObject(model);
-          setTree(buildTree(model));
-          let objectCount = 0;
-          let triangles = 0;
-          model.traverse((object: any) => {
-            objectCount += 1;
-            if (object.geometry?.index?.count) triangles += Math.floor(object.geometry.index.count / 3);
-            else if (object.isMesh && object.geometry?.attributes?.position?.count) triangles += Math.floor(object.geometry.attributes.position.count / 3);
-          });
-          setStats({ objects: objectCount, triangles });
-          setProgress(100);
-          setStatus("Ready");
         };
         rootLoaderRef.current = openRoot;
         await openRoot(rootOptions[0].path);
@@ -509,6 +574,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
     start();
     return () => {
       disposed = true;
+      rootController?.abort();
       rootLoaderRef.current = null;
       cancelAnimationFrame(animation);
       resizeObserver?.disconnect();
@@ -614,6 +680,10 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
     engine.controls.update();
   };
 
+  const goHome = () => {
+    engineRef.current?.frame?.();
+  };
+
   const switchRoot = async (path: string) => {
     try { await rootLoaderRef.current?.(path); }
     catch (cause) {
@@ -626,7 +696,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
   return (
     <main className={`viewer-shell ${leftOpen ? "left-open" : ""} ${rightOpen ? "right-open" : ""}`}>
       <header className="viewer-header">
-        <button className="viewer-brand" onClick={onClose} type="button" aria-label="Back to homepage"><span className="viewer-mark">JFK</span><span>CAD Viewer</span></button>
+        <button className="viewer-brand" onClick={onClose} type="button" aria-label="Back to homepage"><BrandIcon className="viewer-brand-logo" /><span className="viewer-brand-copy">CAD Viewer</span></button>
         <div className="document-title">
           <FileBox size={17} />
           <button type="button" onClick={() => { if (roots.length > 1) { setRootQuery(""); setRootType("all"); setOpenMenu(!openMenu); } }} disabled={roots.length < 2} aria-haspopup="dialog" aria-expanded={openMenu}>
@@ -683,8 +753,8 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
             <button type="button" className={toolMode === "select" ? "active" : ""} onClick={() => setToolMode("select")} title="Select object (S)"><MousePointer2 size={17} /><span>Select</span></button>
           </div>
           <span className="toolbar-divider" />
-          <button type="button" onClick={() => engineRef.current?.frame?.()} title="Fit model (F)"><Maximize2 size={17} /></button>
-          <button type="button" onClick={() => setPreset("iso")} title="Reset to isometric"><Home size={17} /></button>
+          <button type="button" onClick={() => engineRef.current?.frame?.()} title="Fit model (F)" aria-label="Fit model"><Maximize2 size={17} /></button>
+          <button className="home-fit-button" type="button" onClick={goHome} title="Home: isometric view and fit model" aria-label="Home: isometric view and fit model"><Home size={17} /><span>Home</span></button>
           <span className="toolbar-divider" />
           <div className="segmented view-switch">
             <button type="button" className={viewMode === "linear" ? "active" : ""} onClick={() => setViewMode("linear")}><Ruler size={16} />Linear</button>

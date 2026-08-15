@@ -18,19 +18,11 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import { Brand } from "./Brand";
 import { Viewer } from "./Viewer";
 
 const ACCEPTED = ".ipt,.iam,.idw,.ipn,.ide,.dwg,.dxf,.zip,.faf";
 const IMPRINT_URL = "https://github.com/jfk-solutions/.github/blob/main/profile/imprint.md";
-
-function Brand({ light = false }: { light?: boolean }) {
-  return (
-    <a className={`brand ${light ? "brand-light" : ""}`} href="https://jfk-solutions.de" target="_blank" rel="noreferrer" aria-label="JFK Solutions website">
-      <span className="brand-mark" aria-hidden="true"><span>J</span><span>F</span><span>K</span></span>
-      <span className="brand-copy"><strong>JFK</strong><small>Solutions</small></span>
-    </a>
-  );
-}
 
 type DropZoneProps = {
   onFiles: (files: File[]) => void;
