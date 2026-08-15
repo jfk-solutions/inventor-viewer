@@ -23,6 +23,7 @@ import { Viewer } from "./Viewer";
 
 const ACCEPTED = ".ipt,.iam,.idw,.ipn,.ide,.dwg,.dxf,.zip,.faf";
 const IMPRINT_URL = "https://github.com/jfk-solutions/.github/blob/main/profile/imprint.md";
+const PRIVACY_URL = `${import.meta.env.BASE_URL}datenschutz.html`;
 
 type DropZoneProps = {
   onFiles: (files: File[]) => void;
@@ -70,6 +71,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
         <div className="nav-links">
           <a href="#formats">Formats</a>
           <a href="#privacy">How it works</a>
+          <a href={PRIVACY_URL} target="_blank" rel="noreferrer">Datenschutz</a>
           <a href={IMPRINT_URL} target="_blank" rel="noreferrer">Impressum</a>
         </div>
       </nav>
@@ -146,7 +148,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
       <footer className="site-footer page-width">
         <Brand />
         <p>Digital engineering solutions from Offenau, Germany.</p>
-        <div><a href="https://jfk-solutions.de" target="_blank" rel="noreferrer">jfk-solutions.de</a><a href={IMPRINT_URL} target="_blank" rel="noreferrer">Impressum</a></div>
+        <div><a href="https://jfk-solutions.de" target="_blank" rel="noreferrer">jfk-solutions.de</a><a href={PRIVACY_URL} target="_blank" rel="noreferrer">Datenschutz</a><a href={IMPRINT_URL} target="_blank" rel="noreferrer">Impressum</a></div>
       </footer>
     </main>
   );

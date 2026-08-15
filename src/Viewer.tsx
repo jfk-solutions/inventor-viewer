@@ -40,6 +40,7 @@ type TreeItem = { id: string; label: string; kind: string; object: any; children
 type PropertySection = { title: string; rows: { name: string; value: string }[] };
 
 const IMPRINT_URL = "https://github.com/jfk-solutions/.github/blob/main/profile/imprint.md";
+const PRIVACY_URL = `${import.meta.env.BASE_URL}datenschutz.html`;
 
 function extension(path: string) {
   return path.split(".").pop()?.toLowerCase() ?? "";
@@ -729,6 +730,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         </div>
         <div className="viewer-actions">
           <button className="open-file-button" type="button" onClick={() => setOpenMenu(false)}><FolderOpen size={16} /> Open <input type="file" multiple accept=".ipt,.iam,.idw,.ipn,.ide,.dwg,.dxf,.zip,.faf" onChange={(event) => event.target.files?.length && onOpenFiles([...event.target.files])} /></button>
+          <a className="viewer-imprint" href={PRIVACY_URL} target="_blank" rel="noreferrer">Datenschutz</a>
           <a className="viewer-imprint" href={IMPRINT_URL} target="_blank" rel="noreferrer">Impressum</a>
           <span className="header-separator" />
           <button type="button" title="Close viewer" onClick={onClose}><X size={19} /></button>

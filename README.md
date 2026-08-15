@@ -88,7 +88,8 @@ In the GitHub repository, open **Settings → Pages** and set **Source** to **Gi
 ## Privacy and security
 
 - Selected files stay in browser memory and are not uploaded by this application.
-- The app has no backend, analytics, cookies, authentication or Vault integration.
+- The app has no application backend, authentication or Vault integration. Cloudflare Web Analytics measures site usage; selected CAD files are not included in analytics events.
+- The published site links to the dedicated German privacy notice at `datenschutz.html` from both the homepage and viewer.
 - Closing or refreshing the tab releases the active workspace.
 - Browser memory and GPU capacity still limit very large assemblies. ZIP and parser allocation limits protect against unexpectedly large archive entries.
 
