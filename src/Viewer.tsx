@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   Crosshair,
+  Download,
   Eye,
   EyeOff,
   FileBox,
@@ -26,6 +27,7 @@ import {
 } from "lucide-react";
 import { BrandIcon } from "./Brand";
 import { loadCadRuntime, type CadRuntime } from "./runtime";
+import { ACCEPTED_FILE_TYPES, fileExtension, isThreeModelFile } from "./formats";
 
 type ViewerProps = {
   files: File[];
@@ -38,16 +40,34 @@ type ViewMode = "linear" | "perspective";
 type ToolMode = "move" | "select";
 type TreeItem = { id: string; label: string; kind: string; object: any; children: TreeItem[] };
 type PropertySection = { title: string; rows: { name: string; value: string }[] };
+type ExportFormat = "glb" | "gltf" | "obj" | "stl" | "ply" | "usdz";
+
+const EXPORT_FORMATS: { format: ExportFormat; label: string; description: string }[] = [
+  { format: "glb", label: "GLB", description: "Binary glTF with materials and textures" },
+  { format: "gltf", label: "glTF", description: "JSON glTF with embedded resources" },
+  { format: "obj", label: "OBJ", description: "Mesh and line geometry" },
+  { format: "stl", label: "STL", description: "Binary triangle mesh for 3D printing" },
+  { format: "ply", label: "PLY", description: "Binary mesh or point cloud" },
+  { format: "usdz", label: "USDZ", description: "Packaged model for Apple AR" },
+];
 
 const IMPRINT_URL = "https://github.com/jfk-solutions/.github/blob/main/profile/imprint.md";
 const PRIVACY_URL = `${import.meta.env.BASE_URL}datenschutz.html`;
 
 function extension(path: string) {
-  return path.split(".").pop()?.toLowerCase() ?? "";
+  return fileExtension(path);
 }
 
 function kindFor(path: string) {
-  return ({ iam: "Assembly", ipt: "Part", idw: "Drawing", ipn: "Presentation", ide: "iFeature", dwg: "AutoCAD drawing", dxf: "DXF drawing" } as Record<string, string>)[extension(path)] ?? "CAD document";
+  return ({
+    iam: "Assembly", ipt: "Part", idw: "Drawing", ipn: "Presentation", ide: "iFeature",
+    dwg: "AutoCAD drawing", dxf: "DXF drawing", glb: "Binary glTF", gltf: "glTF model",
+    obj: "Wavefront model", stl: "STL mesh", ply: "PLY model", fbx: "FBX model",
+    "3mf": "3MF model", amf: "AMF model", dae: "Collada model", "3ds": "3DS model",
+    wrl: "VRML model", vrml: "VRML model", vtk: "VTK model", vtp: "VTK PolyData",
+    pcd: "Point cloud", xyz: "XYZ point cloud", vox: "MagicaVoxel model", usd: "USD model",
+    usda: "USD ASCII model", usdc: "USD binary model", usdz: "USDZ model", json: "Three.js scene",
+  } as Record<string, string>)[extension(path)] ?? "3D model";
 }
 
 function readableBytes(value: number) {
@@ -56,6 +76,22 @@ function readableBytes(value: number) {
   let unit = 0;
   while (size >= 1024 && unit < units.length - 1) { size /= 1024; unit += 1; }
   return `${size.toFixed(unit ? 1 : 0)} ${units[unit]}`;
+}
+
+function exportBaseName(path: string) {
+  const fileName = path.split(/[\\/]/).pop() || "cad-model";
+  return fileName.replace(/\.[^.]+$/, "").replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "") || "cad-model";
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
 function cleanName(value: string) {
@@ -228,6 +264,160 @@ function buildDxfGroup(runtime: CadRuntime, bytes: Uint8Array) {
   return { group, document };
 }
 
+type LoadedThreeModel = { model: any; objectUrls: string[] };
+
+function filePath(file: File) {
+  return (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+}
+
+function normalizedAssetPath(value: string) {
+  let path = value.split(/[?#]/, 1)[0].replace(/\\/g, "/");
+  try { path = decodeURIComponent(path); } catch { /* Keep the original URL if it is not valid URI text. */ }
+  if (/^[a-z]+:\/\//i.test(path)) {
+    try { path = new URL(path).pathname; } catch { /* Treat it as a relative path below. */ }
+  }
+  return path.replace(/^\.?\//, "").toLocaleLowerCase();
+}
+
+function createLocalLoadingManager(runtime: CadRuntime, files: File[]) {
+  const manager = new runtime.THREE.LoadingManager();
+  const byPath = new Map<string, File>();
+  const objectUrls = new Map<File, string>();
+  for (const file of files) {
+    const path = normalizedAssetPath(filePath(file));
+    byPath.set(path, file);
+    byPath.set(path.split("/").pop() || path, file);
+  }
+  manager.setURLModifier((url: string) => {
+    if (/^(blob:|data:)/i.test(url)) return url;
+    const path = normalizedAssetPath(url);
+    const file = byPath.get(path) ?? [...byPath.entries()].find(([candidate]) => candidate.endsWith(`/${path}`) || path.endsWith(`/${candidate}`))?.[1];
+    if (!file) return url;
+    let objectUrl = objectUrls.get(file);
+    if (!objectUrl) {
+      objectUrl = URL.createObjectURL(file);
+      objectUrls.set(file, objectUrl);
+    }
+    return objectUrl;
+  });
+  manager.addHandler(/\.tga$/i, new runtime.TGALoader(manager));
+  manager.addHandler(/\.dds$/i, new runtime.DDSLoader(manager));
+  return { manager, objectUrls };
+}
+
+function meshFromGeometry(runtime: CadRuntime, geometry: any, name: string) {
+  const { THREE } = runtime;
+  if (!geometry.getAttribute?.("normal")) geometry.computeVertexNormals?.();
+  const vertexColors = Boolean(geometry.getAttribute?.("color") || geometry.hasColors);
+  const opacity = typeof geometry.alpha === "number" ? geometry.alpha : 1;
+  const material = new THREE.MeshStandardMaterial({
+    color: vertexColors ? 0xffffff : 0x91a1a6,
+    roughness: 0.78,
+    metalness: 0.04,
+    vertexColors,
+    opacity,
+    transparent: opacity < 1,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = name;
+  return mesh;
+}
+
+function pointsFromGeometry(runtime: CadRuntime, geometry: any, name: string) {
+  const { THREE } = runtime;
+  const points = new THREE.Points(geometry, new THREE.PointsMaterial({
+    color: geometry.getAttribute?.("color") ? 0xffffff : 0x78c6ba,
+    vertexColors: Boolean(geometry.getAttribute?.("color")),
+    size: 0.01,
+    sizeAttenuation: true,
+  }));
+  points.name = name;
+  return points;
+}
+
+async function loadThreeModel(runtime: CadRuntime, file: File, files: File[]): Promise<LoadedThreeModel> {
+  const { THREE } = runtime;
+  const path = filePath(file).replace(/\\/g, "/");
+  const format = extension(path);
+  const { manager, objectUrls } = createLocalLoadingManager(runtime, files);
+  let model: any;
+  let animations: any[] = [];
+
+  try {
+    if (format === "glb" || format === "gltf") {
+      const loader = new runtime.GLTFLoader(manager);
+      loader.setMeshoptDecoder(runtime.MeshoptDecoder);
+      const result = await loader.loadAsync(path);
+      model = result.scene;
+      animations = result.animations ?? [];
+    } else if (format === "obj") {
+      const loader = new runtime.OBJLoader(manager);
+      const stem = file.name.replace(/\.[^.]+$/, "").toLocaleLowerCase();
+      const materialFile = files.find((candidate) => extension(candidate.name) === "mtl" && candidate.name.replace(/\.[^.]+$/, "").toLocaleLowerCase() === stem)
+        ?? files.find((candidate) => extension(candidate.name) === "mtl");
+      if (materialFile) {
+        const materials = await new runtime.MTLLoader(manager).loadAsync(filePath(materialFile).replace(/\\/g, "/"));
+        materials.preload();
+        loader.setMaterials(materials);
+      }
+      model = await loader.loadAsync(path);
+    } else if (format === "stl") {
+      model = meshFromGeometry(runtime, await new runtime.STLLoader(manager).loadAsync(path), file.name);
+    } else if (format === "ply") {
+      const geometry = await new runtime.PLYLoader(manager).loadAsync(path);
+      const header = await file.slice(0, Math.min(file.size, 65_536)).text();
+      const faceCount = Number(/^element\s+face\s+(\d+)/im.exec(header)?.[1] ?? 0);
+      model = faceCount > 0 ? meshFromGeometry(runtime, geometry, file.name) : pointsFromGeometry(runtime, geometry, file.name);
+    } else if (format === "fbx") {
+      model = await new runtime.FBXLoader(manager).loadAsync(path);
+      animations = model.animations ?? [];
+    } else if (format === "3mf") {
+      model = await new runtime.ThreeMFLoader(manager).loadAsync(path);
+    } else if (format === "amf") {
+      model = await new runtime.AMFLoader(manager).loadAsync(path);
+    } else if (format === "dae") {
+      const result = await new runtime.ColladaLoader(manager).loadAsync(path);
+      model = result.scene;
+      animations = result.animations ?? model.animations ?? [];
+    } else if (format === "3ds") {
+      model = await new runtime.TDSLoader(manager).loadAsync(path);
+    } else if (format === "wrl" || format === "vrml") {
+      model = await new runtime.VRMLLoader(manager).loadAsync(path);
+    } else if (format === "vtk" || format === "vtp") {
+      model = meshFromGeometry(runtime, await new runtime.VTKLoader(manager).loadAsync(path), file.name);
+    } else if (format === "pcd") {
+      model = await new runtime.PCDLoader(manager).loadAsync(path);
+    } else if (format === "xyz") {
+      model = pointsFromGeometry(runtime, await new runtime.XYZLoader(manager).loadAsync(path), file.name);
+    } else if (format === "vox") {
+      const result = await new runtime.VOXLoader(manager).loadAsync(path);
+      if (result.scene) model = result.scene;
+      else {
+        model = new THREE.Group();
+        for (const chunk of result.chunks ?? []) model.add(runtime.buildVOXMesh(chunk));
+      }
+    } else if (["usd", "usda", "usdc", "usdz"].includes(format)) {
+      model = await new runtime.USDLoader(manager).loadAsync(path);
+    } else if (format === "json") {
+      model = await new THREE.ObjectLoader(manager).loadAsync(path);
+      animations = model.animations ?? [];
+    } else {
+      throw new Error(`No Three.js loader is registered for .${format}.`);
+    }
+
+    if (!model) throw new Error(`Three.js did not return a scene for ${file.name}.`);
+    model.name ||= file.name;
+    model.animations = animations.length ? animations : model.animations ?? [];
+    model.userData ||= {};
+    model.userData.inventor ||= { kind: kindFor(path), sourcePath: path };
+    return { model, objectUrls: [...objectUrls.values()] };
+  } catch (error) {
+    for (const url of objectUrls.values()) URL.revokeObjectURL(url);
+    throw error;
+  }
+}
+
 export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<any>(null);
@@ -245,6 +435,9 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("perspective");
   const [toolMode, setToolMode] = useState<ToolMode>("move");
   const [openMenu, setOpenMenu] = useState(false);
+  const [exportMenu, setExportMenu] = useState(false);
+  const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
   const [rootQuery, setRootQuery] = useState("");
   const [rootType, setRootType] = useState("all");
   const [, refreshVisibility] = useState(0);
@@ -309,7 +502,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
     const start = async () => {
       try {
         setError(null);
-        setStatus("Loading the private CAD engine…");
+        setStatus("Loading the private 3D engine…");
         setProgress(10);
         const runtime = await loadCadRuntime();
         if (disposed) return;
@@ -484,6 +677,74 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         };
         engine.frame = frameObject;
 
+        const releaseModel = () => {
+          if (!engine.model) return;
+          scene.remove(engine.model);
+          InventorThree.disposeInventorThreeGroup?.(engine.model);
+          for (const url of engine.objectUrls ?? []) URL.revokeObjectURL(url);
+          engine.objectUrls = [];
+          engine.model = null;
+        };
+        engine.releaseModel = releaseModel;
+
+        const presentModel = (model: any, objectUrls: string[] = []) => {
+          releaseModel();
+          engine.model = model;
+          engine.objectUrls = objectUrls;
+          scene.add(model);
+          frameObject(model);
+          model.traverse((object: any) => {
+            if (object.isPoints && object.material?.isPointsMaterial) {
+              object.material.size = Math.max(engine.modelSize * 0.002, 1e-6);
+              object.material.needsUpdate = true;
+            }
+          });
+          setTree(buildTree(model));
+          let objectCount = 0;
+          let triangles = 0;
+          model.traverse((object: any) => {
+            objectCount += 1;
+            if (object.isMesh && object.geometry?.index?.count) triangles += Math.floor(object.geometry.index.count / 3);
+            else if (object.isMesh && object.geometry?.attributes?.position?.count) triangles += Math.floor(object.geometry.attributes.position.count / 3);
+          });
+          setStats({ objects: objectCount, triangles });
+          setProgress(100);
+          setStatus("Ready");
+        };
+
+        const directFiles = files.filter((file) => isThreeModelFile(file.name));
+        if (directFiles.length) {
+          const rootOptions = directFiles.map((file) => ({ path: filePath(file), label: filePath(file), kind: kindFor(file.name) }));
+          setRoots(rootOptions);
+          const openDirectRoot = async (path: string) => {
+            const generation = ++rootGeneration;
+            rootController?.abort();
+            const controller = new AbortController();
+            rootController = controller;
+            const isCurrent = () => !disposed && !controller.signal.aborted && generation === rootGeneration;
+            const file = directFiles.find((candidate) => filePath(candidate) === path);
+            if (!file) throw new Error(`Could not find ${path} in the selected files.`);
+            setActiveRoot(path);
+            setTree(null);
+            clearSelection();
+            setError(null);
+            setStatus(`Opening ${path}…`);
+            setProgress(35);
+            releaseModel();
+            const loaded = await loadThreeModel(runtime, file, files);
+            if (!isCurrent()) {
+              InventorThree.disposeInventorThreeGroup?.(loaded.model);
+              for (const url of loaded.objectUrls) URL.revokeObjectURL(url);
+              return;
+            }
+            setProgress(86);
+            presentModel(loaded.model, loaded.objectUrls);
+          };
+          rootLoaderRef.current = openDirectRoot;
+          await openDirectRoot(rootOptions[0].path);
+          return;
+        }
+
         setStatus("Reading workspace…");
         setProgress(22);
         const first = files[0];
@@ -532,11 +793,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
             setError(null);
             setStatus(`Opening ${path}…`);
             setProgress(58);
-            if (engine.model) {
-              scene.remove(engine.model);
-              InventorThree.disposeInventorThreeGroup?.(engine.model);
-              engine.model = null;
-            }
+            releaseModel();
             if (/\.dxf$/i.test(path)) {
               const source = await workspace.provider.open(path);
               if (!source) throw new Error(`Could not read ${path}.`);
@@ -579,20 +836,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
               InventorThree.disposeInventorThreeGroup?.(model);
               return;
             }
-            engine.model = model;
-            scene.add(model);
-            frameObject(model);
-            setTree(buildTree(model));
-            let objectCount = 0;
-            let triangles = 0;
-            model.traverse((object: any) => {
-              objectCount += 1;
-              if (object.geometry?.index?.count) triangles += Math.floor(object.geometry.index.count / 3);
-              else if (object.isMesh && object.geometry?.attributes?.position?.count) triangles += Math.floor(object.geometry.attributes.position.count / 3);
-            });
-            setStats({ objects: objectCount, triangles });
-            setProgress(100);
-            setStatus("Ready");
+            presentModel(model);
           } catch (cause) {
             if (!isCurrent()) return;
             throw cause;
@@ -604,7 +848,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         console.error(cause);
         if (!disposed) {
           setError(cause instanceof Error ? cause.message : String(cause));
-          setStatus("Could not open this workspace");
+          setStatus("Could not open this model");
           setProgress(100);
         }
       }
@@ -622,11 +866,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
       if (engine) {
         engine.controls?.dispose?.();
         engine.renderer?.dispose?.();
-        engine.model?.traverse?.((object: any) => {
-          object.geometry?.dispose?.();
-          if (Array.isArray(object.material)) object.material.forEach((material: any) => material.dispose?.());
-          else object.material?.dispose?.();
-        });
+        engine.releaseModel?.();
       }
       engineRef.current = null;
     };
@@ -732,6 +972,52 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
     }
   };
 
+  const exportModel = async (format: ExportFormat) => {
+    const engine = engineRef.current;
+    if (!engine?.model || exporting) return;
+    setExportMenu(false);
+    setExporting(format);
+    setExportNotice(null);
+    try {
+      engine.model.updateMatrixWorld(true);
+      const runtime = engine.runtime as CadRuntime;
+      let data: string | ArrayBuffer | ArrayBufferView | null;
+      let mimeType: string;
+
+      if (format === "glb" || format === "gltf") {
+        const gltfData = await new runtime.GLTFExporter().parseAsync(engine.model, {
+          binary: format === "glb",
+          onlyVisible: false,
+          maxTextureSize: 4096,
+          animations: engine.model.animations ?? [],
+        });
+        data = format === "gltf" && typeof gltfData !== "string" ? JSON.stringify(gltfData, null, 2) : gltfData;
+        mimeType = format === "glb" ? "model/gltf-binary" : "model/gltf+json";
+      } else if (format === "obj") {
+        data = new runtime.OBJExporter().parse(engine.model);
+        mimeType = "text/plain;charset=utf-8";
+      } else if (format === "stl") {
+        data = new runtime.STLExporter().parse(engine.model, { binary: true });
+        mimeType = "model/stl";
+      } else if (format === "ply") {
+        data = new runtime.PLYExporter().parse(engine.model, undefined, { binary: true, littleEndian: true });
+        mimeType = "application/octet-stream";
+      } else {
+        data = await new runtime.USDZExporter().parseAsync(engine.model, { onlyVisible: false, maxTextureSize: 2048, animations: engine.model.animations ?? [] });
+        mimeType = "model/vnd.usdz+zip";
+      }
+
+      if (data == null) throw new Error(`The model contains no geometry supported by ${format.toUpperCase()}.`);
+      downloadBlob(new Blob([data as BlobPart], { type: mimeType }), `${exportBaseName(title)}.${format}`);
+      setExportNotice(`${format === "gltf" ? "glTF" : format.toUpperCase()} download created`);
+    } catch (cause) {
+      console.error(cause);
+      setExportNotice(`Export failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+    } finally {
+      setExporting(null);
+    }
+  };
+
   return (
     <main className={`viewer-shell ${leftOpen ? "left-open" : ""} ${rightOpen ? "right-open" : ""}`}>
       <header className="viewer-header">
@@ -742,7 +1028,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
             <span>{title.split(/[\\/]/).pop()}</span>{roots.length > 1 && <ChevronDown size={14} />}
           </button>
           <span className="file-meta">{kindFor(title)} · {readableBytes(fileSize)}</span>
-          {openMenu && <div className="root-menu" role="dialog" aria-label="Open a document from this workspace">
+          {openMenu && <div className="root-menu" role="dialog" aria-label="Open a model from this selection">
             <div className="root-menu-search">
               <Search size={15} />
               <input
@@ -750,8 +1036,8 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
                 value={rootQuery}
                 onChange={(event) => setRootQuery(event.target.value)}
                 onKeyDown={(event) => { if (event.key === "Escape") setOpenMenu(false); }}
-                placeholder="Filter IAM, IPT, drawings…"
-                aria-label="Filter workspace documents"
+                placeholder="Filter models and documents…"
+                aria-label="Filter available models"
               />
               {rootQuery && <button type="button" onClick={() => setRootQuery("")} aria-label="Clear document filter"><X size={14} /></button>}
             </div>
@@ -759,15 +1045,28 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
               <button type="button" className={rootType === "all" ? "active" : ""} onClick={() => setRootType("all")}>All <b>{roots.length.toLocaleString()}</b></button>
               {rootTypes.map(([type, count]) => <button key={type} type="button" className={rootType === type ? "active" : ""} onClick={() => setRootType(type)} title={`Show only .${type} documents`}>{type.toUpperCase()} <b>{count.toLocaleString()}</b></button>)}
             </div>
-            <div className="root-menu-summary"><span>Workspace documents</span><b>{filteredRoots.length.toLocaleString()} / {roots.length.toLocaleString()}</b></div>
+            <div className="root-menu-summary"><span>Available models</span><b>{filteredRoots.length.toLocaleString()} / {roots.length.toLocaleString()}</b></div>
             <div className="root-menu-list" role="listbox">
               {filteredRoots.map((root) => <button key={root.path} type="button" role="option" aria-selected={activeRoot === root.path} title={root.path} className={`root-option ${activeRoot === root.path ? "active" : ""}`} onClick={() => { setOpenMenu(false); setRootQuery(""); setRootType("all"); switchRoot(root.path); }}><IconForKind kind={root.kind} /><span><strong title={root.path}>{root.label}</strong><small>{root.kind} · .{extension(root.path).toUpperCase()}</small></span></button>)}
-              {!filteredRoots.length && <div className="root-menu-empty"><Search size={19} /><span>No matching CAD documents</span><button type="button" onClick={() => setRootQuery("")}>Clear filter</button></div>}
+              {!filteredRoots.length && <div className="root-menu-empty"><Search size={19} /><span>No matching models</span><button type="button" onClick={() => setRootQuery("")}>Clear filter</button></div>}
             </div>
           </div>}
         </div>
         <div className="viewer-actions">
-          <button className="open-file-button" type="button" onClick={() => setOpenMenu(false)}><FolderOpen size={16} /> Open <input type="file" multiple accept=".ipt,.iam,.idw,.ipn,.ide,.dwg,.dxf,.zip,.faf" onChange={(event) => event.target.files?.length && onOpenFiles([...event.target.files])} /></button>
+          <button className="open-file-button" type="button" onClick={() => { setOpenMenu(false); setExportMenu(false); }}><FolderOpen size={16} /> Open <input type="file" multiple accept={ACCEPTED_FILE_TYPES} onChange={(event) => event.target.files?.length && onOpenFiles([...event.target.files])} /></button>
+          <div className="export-control">
+            <button className="export-button" type="button" disabled={!engineRef.current?.model || Boolean(exporting)} aria-haspopup="menu" aria-expanded={exportMenu} onClick={() => { setOpenMenu(false); setExportMenu(!exportMenu); }}>
+              {exporting ? <LoaderCircle className="spin" size={16} /> : <Download size={16} />}<span>{exporting ? `Exporting ${exporting === "gltf" ? "glTF" : exporting.toUpperCase()}…` : "Export"}</span><ChevronDown size={13} />
+            </button>
+            {exportMenu && <div className="export-menu" role="menu" aria-label="Export model">
+              <div className="export-menu-heading"><strong>Export loaded model</strong><span>Geometry uses viewer units</span></div>
+              {EXPORT_FORMATS.map((option) => <button key={option.format} type="button" role="menuitem" onClick={() => exportModel(option.format)}>
+                <b>{option.label}</b><span>{option.description}</span>
+              </button>)}
+              <div className="export-menu-note">STEP export requires the original CAD kernel and is not available from the rendered mesh.</div>
+            </div>}
+          </div>
+          {exportNotice && <div className={`export-notice ${exportNotice.startsWith("Export failed") ? "error" : ""}`} role="status"><span>{exportNotice}</span><button type="button" onClick={() => setExportNotice(null)} aria-label="Dismiss export message"><X size={13} /></button></div>}
           <a className="viewer-imprint" href={PRIVACY_URL} target="_blank" rel="noreferrer">Datenschutz</a>
           <a className="viewer-imprint" href={IMPRINT_URL} target="_blank" rel="noreferrer">Impressum</a>
           <span className="header-separator" />
@@ -776,7 +1075,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
       </header>
 
       <aside className={`model-panel ${leftOpen ? "" : "closed"}`}>
-        <div className="panel-heading"><div><span>Model</span><small>{roots.length > 1 ? `${roots.length} documents` : kindFor(title)}</small></div><button type="button" onClick={() => setLeftOpen(false)} aria-label="Close model panel"><PanelLeftClose size={17} /></button></div>
+        <div className="panel-heading"><div><span>Model</span><small>{roots.length > 1 ? `${roots.length} models` : kindFor(title)}</small></div><button type="button" onClick={() => setLeftOpen(false)} aria-label="Close model panel"><PanelLeftClose size={17} /></button></div>
         <div className="tree-search"><Search size={14} /><input placeholder="Filter model" aria-label="Filter model" /></div>
         <div className="model-tree">{tree ? <TreeNode item={tree} level={0} selected={selected} onSelect={selectObject} onToggleVisibility={toggleObjectVisibility} /> : <div className="tree-loading"><LoaderCircle className="spin" size={18} /> Reading model…</div>}</div>
         <div className="model-stats"><span><strong>{stats.objects.toLocaleString()}</strong> objects</span><span><strong>{stats.triangles.toLocaleString()}</strong> triangles</span></div>

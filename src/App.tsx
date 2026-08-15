@@ -20,8 +20,8 @@ import {
 } from "lucide-react";
 import { Brand } from "./Brand";
 import { Viewer } from "./Viewer";
+import { ACCEPTED_FILE_TYPES, isAcceptedFile, isModelFile } from "./formats";
 
-const ACCEPTED = ".ipt,.iam,.idw,.ipn,.ide,.dwg,.dxf,.zip,.faf";
 const IMPRINT_URL = "https://github.com/jfk-solutions/.github/blob/main/profile/imprint.md";
 const PRIVACY_URL = `${import.meta.env.BASE_URL}datenschutz.html`;
 
@@ -48,16 +48,16 @@ export function DropZone({ onFiles, compact = false }: DropZoneProps) {
       tabIndex={0}
       onClick={() => input.current?.click()}
       onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") input.current?.click(); }}
-      aria-label="Choose or drop CAD files"
+      aria-label="Choose or drop 3D model files"
     >
-      <input ref={input} hidden type="file" multiple accept={ACCEPTED} onChange={(event) => takeFiles(event.target.files)} />
+      <input ref={input} hidden type="file" multiple accept={ACCEPTED_FILE_TYPES} onChange={(event) => takeFiles(event.target.files)} />
       <div className="drop-icon"><UploadCloud size={compact ? 20 : 27} strokeWidth={1.7} /></div>
       <div className="drop-copy">
-        <strong>{compact ? "Open another CAD file" : "Drop your CAD file here"}</strong>
+        <strong>{compact ? "Open another model" : "Drop your 3D model here"}</strong>
         {!compact && <span>or click to browse your computer</span>}
       </div>
       {!compact && <button type="button" className="choose-button">Choose files <ArrowRight size={16} /></button>}
-      {!compact && <div className="drop-formats">IPT · IAM · IDW · IPN · DWG · DXF · ZIP</div>}
+      {!compact && <div className="drop-formats">IPT · IAM · DWG · GLB · GLTF · OBJ · STL · PLY · FBX</div>}
     </div>
   );
 }
@@ -80,7 +80,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
         <div className="hero-copy">
           <div className="eyebrow"><span /> Browser-based CAD viewing by JFK Solutions</div>
           <h1>Your CAD data.<br /><em>Right here.</em></h1>
-          <p>Open Inventor assemblies, parts and drawings — plus AutoCAD files — directly in your browser. No installation. No upload.</p>
+          <p>Open Inventor and AutoCAD files — plus common Three.js 3D formats — directly in your browser. No installation. No upload.</p>
           <div className="trust-row">
             <span><ShieldCheck size={17} /> Processed locally</span>
             <span><Zap size={17} /> Opens in seconds</span>
@@ -101,6 +101,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
             <span><FileCode2 size={18} /> Drawing <b>IDW</b></span>
             <span><Layers3 size={18} /> AutoCAD <b>DWG / DXF</b></span>
             <span><FileArchive size={18} /> Workspace <b>ZIP</b></span>
+            <span><Box size={18} /> 3D models <b>GLB / STL</b></span>
           </div>
           <button className="format-more" type="button" onClick={() => setFormatsOpen(!formatsOpen)} aria-expanded={formatsOpen}>
             All formats <ChevronDown size={15} className={formatsOpen ? "rotated" : ""} />
@@ -112,6 +113,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
             <div><strong>Inventor 2D</strong><span>.idw drawings and Inventor .dwg references</span></div>
             <div><strong>AutoCAD</strong><span>.dwg and ASCII or binary .dxf drawings</span></div>
             <div><strong>Packaged projects</strong><span>.zip workspaces and .faf Factory Assets with linked files</span></div>
+            <div><strong>Three.js models</strong><span>.glb, .gltf, .obj, .stl, .ply, .fbx, .3mf, .dae, .usdz and more</span></div>
           </div>
         )}
       </section>
@@ -141,7 +143,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
       <section className="cta-section">
         <div className="page-width cta-inner">
           <div><span>Ready when you are</span><h2>Take a closer look.</h2></div>
-          <button type="button" onClick={() => document.querySelector<HTMLElement>(".drop-zone")?.click()}>Open a CAD file <ArrowRight size={18} /></button>
+          <button type="button" onClick={() => document.querySelector<HTMLElement>(".drop-zone")?.click()}>Open a 3D file <ArrowRight size={18} /></button>
         </div>
       </section>
 
@@ -159,9 +161,13 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
 
   const openFiles = useCallback((next: File[]) => {
-    const unsupported = next.find((file) => !ACCEPTED.split(",").some((ext) => file.name.toLowerCase().endsWith(ext.slice(1))));
+    const unsupported = next.find((file) => !isAcceptedFile(file.name));
     if (unsupported) {
-      setError(`${unsupported.name} is not a supported CAD file.`);
+      setError(`${unsupported.name} is not a supported model or resource file.`);
+      return;
+    }
+    if (!next.some((file) => isModelFile(file.name))) {
+      setError("Choose a supported 3D model file. Textures and sidecar files can be selected with it.");
       return;
     }
     setError(null);

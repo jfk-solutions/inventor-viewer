@@ -1,6 +1,6 @@
 # JFK Solutions CAD Viewer
 
-A modern, static CAD viewer for Autodesk Inventor and AutoCAD files. Files are parsed and rendered entirely in the browser: there is no upload service, no account and no Vault connection.
+A modern, static 3D viewer for Autodesk Inventor, AutoCAD and common Three.js model formats. Files are parsed and rendered entirely in the browser: there is no upload service, no account and no Vault connection.
 
 The repository is designed for GitHub Pages. The complete minimized CAD runtime is checked in at `public/vendor/cad-viewer-runtime.min.js`, so a clean Pages build does not need unpublished packages or the two sibling development repositories.
 
@@ -17,6 +17,16 @@ The repository is designed for GitHub Pages. The complete minimized CAD runtime 
 | `.dxf` | ASCII and binary DXF; common line, arc, circle, polyline, point and 3D-face entities |
 | `.zip` | Packaged Inventor workspaces, including an IAM and all linked documents, textures and project files |
 | `.faf` | Inventor Factory Asset packages |
+| `.glb`, `.gltf` | glTF 2.0 scenes, materials, textures and animations; local sidecar resources can be selected together |
+| `.obj` | Wavefront geometry, with optional `.mtl` and local texture files selected alongside it |
+| `.stl`, `.ply` | Triangle meshes and PLY point clouds in ASCII or binary form |
+| `.fbx`, `.dae`, `.3ds` | FBX, Collada and 3D Studio interchange models |
+| `.3mf`, `.amf` | 3D manufacturing models |
+| `.usd`, `.usda`, `.usdc`, `.usdz` | Universal Scene Description models and packages |
+| `.wrl`, `.vrml`, `.vtk`, `.vtp` | VRML and VTK PolyData models |
+| `.pcd`, `.xyz` | Point-cloud data |
+| `.vox` | MagicaVoxel models |
+| `.json` | Three.js Object/Scene JSON |
 
 For assemblies, package the IAM and all referenced documents into one ZIP while retaining their relative paths. The viewer discovers candidate root documents and opens the assembly first. Missing references remain visible in the model metadata; the viewer never attempts to access Autodesk Vault.
 
@@ -29,6 +39,7 @@ For assemblies, package the IAM and all referenced documents into one ZIP while 
 - **Linear / Perspective** — switch between an orthographic engineering view and a perspective camera.
 - **Fit** — frame the complete model. Double-click geometry to move the camera target to that point.
 - **View cube** — jump to Top, Front or Right; Home returns to an isometric view.
+- **Export** — download the loaded model as GLB, glTF, OBJ, binary STL, binary PLY or USDZ. STEP is not available because the viewer operates on rendered triangle meshes rather than CAD solids.
 
 Keyboard shortcuts: `M` Move, `S` Select, `1` Linear, `2` Perspective, `F` Fit, and `Escape` clear selection.
 
@@ -77,7 +88,7 @@ npm run bundle:vendor
 npm run build
 ```
 
-`scripts/runtime-entry.mjs` combines Inventor parsing, the Three.js adapter, `acad-ts`, Three.js and OrbitControls. `scripts/build-vendor.mjs` creates the minified runtime, copies the minified BZip2/WASM decoder required by serialized Inventor graphics, and updates `src/runtime-version.ts` with its content hash. Commit the generated runtime, decoder directory, and version file whenever either local library changes; the hash prevents browsers and GitHub Pages from reusing an older CAD runtime.
+`scripts/runtime-entry.mjs` combines Inventor parsing, the Three.js adapter, `acad-ts`, Three.js, OrbitControls, model loaders and exporters. `scripts/build-vendor.mjs` creates the minified runtime, copies the minified BZip2/WASM decoder required by serialized Inventor graphics, and updates `src/runtime-version.ts` with its content hash. Commit the generated runtime, decoder directory, and version file whenever either local library changes; the hash prevents browsers and GitHub Pages from reusing an older CAD runtime.
 
 ## GitHub Pages
 
@@ -88,7 +99,7 @@ In the GitHub repository, open **Settings → Pages** and set **Source** to **Gi
 ## Privacy and security
 
 - Selected files stay in browser memory and are not uploaded by this application.
-- The app has no application backend, authentication or Vault integration. Cloudflare Web Analytics measures site usage; selected CAD files are not included in analytics events.
+- The app has no application backend, authentication or Vault integration. Cloudflare Web Analytics measures site usage; selected model files are not included in analytics events.
 - The published site links to the dedicated German privacy notice at `datenschutz.html` from both the homepage and viewer.
 - Closing or refreshing the tab releases the active workspace.
 - Browser memory and GPU capacity still limit very large assemblies. ZIP and parser allocation limits protect against unexpectedly large archive entries.

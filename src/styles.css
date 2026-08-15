@@ -73,7 +73,7 @@ a { color: inherit; text-decoration: none; }
 .format-more { border: 0; background: transparent; display: flex; align-items: center; gap: 5px; color: var(--teal); font-size: 12px; font-weight: 700; cursor: pointer; }
 .format-more svg { transition: transform .2s; }
 .format-more svg.rotated { transform: rotate(180deg); }
-.format-details { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; padding-bottom: 24px; }
+.format-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1px; padding-bottom: 24px; }
 .format-details div { display: grid; gap: 5px; padding: 16px; background: rgba(255,255,255,.6); }
 .format-details strong { font: 700 13px "Manrope"; }
 .format-details span { color: var(--muted); font-size: 11px; line-height: 1.45; }
@@ -144,6 +144,22 @@ a { color: inherit; text-decoration: none; }
 .viewer-actions > button { height: 32px; min-width: 32px; display: grid; place-items: center; position: relative; border: 0; background: transparent; color: #aab6b9; cursor: pointer; }
 .viewer-actions > button:hover { color: #fff; background: #2a3538; }
 .viewer-actions .open-file-button { display: flex; gap: 7px; padding-inline: 10px; font-size: 10px; font-weight: 700; }
+.export-control { position: relative; }
+.export-button { height: 32px; display: flex; align-items: center; gap: 6px; padding: 0 9px; border: 0; background: transparent; color: #aab6b9; cursor: pointer; font-size: 10px; font-weight: 700; }
+.export-button:hover, .export-button[aria-expanded="true"] { color: #fff; background: #2a3538; }
+.export-button:disabled { cursor: wait; opacity: .65; }
+.export-menu { position: absolute; right: 0; top: 38px; width: 286px; padding: 5px; background: #222d30; border: 1px solid #3b484b; box-shadow: 0 15px 35px rgba(0,0,0,.38); z-index: 35; }
+.export-menu-heading { display: grid; gap: 2px; padding: 8px 9px 10px; border-bottom: 1px solid #354144; }
+.export-menu-heading strong { color: #e5edef; font: 700 10px "Manrope"; }
+.export-menu-heading span { color: #78878a; font-size: 8px; }
+.export-menu > button { width: 100%; display: grid; grid-template-columns: 46px 1fr; align-items: center; gap: 7px; padding: 8px 9px; border: 0; background: transparent; color: #dbe4e6; text-align: left; cursor: pointer; }
+.export-menu > button:hover { background: #2d3b3e; }
+.export-menu > button b { color: #76c4b8; font: 700 10px "Manrope"; }
+.export-menu > button span { color: #93a1a4; font-size: 9px; }
+.export-menu-note { margin-top: 4px; padding: 8px 9px; border-top: 1px solid #354144; color: #718084; font-size: 8px; line-height: 1.45; }
+.export-notice { position: fixed; right: 12px; top: 58px; max-width: min(380px, calc(100vw - 24px)); display: flex; align-items: center; gap: 8px; padding: 8px 9px 8px 11px; background: #29413f; border: 1px solid #48736d; color: #d9ece9; box-shadow: 0 8px 24px rgba(0,0,0,.3); font-size: 9px; z-index: 40; }
+.export-notice.error { background: #4a2d2d; border-color: #825151; color: #f2dede; }
+.export-notice button { width: 21px; height: 21px; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
 .viewer-imprint { padding: 8px; color: #829095; font-size: 9px; font-weight: 600; }
 .viewer-imprint:hover { color: #fff; }
 .open-file-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
@@ -277,6 +293,9 @@ a { color: inherit; text-decoration: none; }
   .viewer-brand { padding: 0 10px; }
   .viewer-brand-copy { display: none; }
   .file-meta, .viewer-actions .open-file-button { display: none; }
+  .export-button span { display: none; }
+  .export-button { gap: 3px; padding-inline: 7px; }
+  .export-menu { position: fixed; right: 8px; top: 48px; width: min(286px, calc(100vw - 16px)); }
   .viewer-shell.left-open, .viewer-shell.left-open.right-open { grid-template-columns: 0 1fr 0; }
   .model-panel { position: fixed; left: 0; top: 48px; bottom: 0; width: 252px; z-index: 15; box-shadow: 10px 0 35px rgba(0,0,0,.3); }
   .model-panel.closed { transform: translateX(-100%); }
