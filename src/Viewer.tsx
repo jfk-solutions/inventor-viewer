@@ -348,7 +348,24 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         grid.material.transparent = true;
         grid.material.opacity = 0.55;
         scene.add(grid);
-        const engine: any = { runtime, THREE, renderer, scene, perspective, linear, camera: perspective, controls, grid, model: null, helper: null, bounds: null, modelSize: 10 };
+        const engine: any = {
+          runtime,
+          THREE,
+          renderer,
+          scene,
+          perspective,
+          linear,
+          camera: perspective,
+          controls,
+          grid,
+          model: null,
+          helper: null,
+          bounds: null,
+          boundsCenter: new THREE.Vector3(),
+          cameraDirection: new THREE.Vector3(),
+          centerOffset: new THREE.Vector3(),
+          modelSize: 10,
+        };
         engineRef.current = engine;
 
         const resize = () => {
@@ -372,13 +389,33 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           if (disposed) return;
           controls.update();
           if (engine.model && engine.camera === perspective) {
-            const distance = perspective.position.distanceTo(controls.target);
-            const near = Math.max(Math.min(engine.modelSize / 100000, distance / 1000), Number.EPSILON);
-            const far = Math.max(engine.modelSize * 1000, distance + engine.modelSize * 100, 1);
+            const surfaceDistance = engine.bounds.distanceToPoint(perspective.position);
+            const centerDistance = perspective.position.distanceTo(engine.bounds.getCenter(engine.boundsCenter));
+            const { near, far } = InventorThree.computeInventorPerspectiveClipPlanes(
+              engine.modelSize,
+              surfaceDistance,
+              centerDistance,
+            );
             if (perspective.near !== near || perspective.far !== far) {
               perspective.near = near;
               perspective.far = far;
               perspective.updateProjectionMatrix();
+            }
+          } else if (engine.model && engine.camera === linear) {
+            // Orthographic depth is linear, so the enormous symmetric range
+            // previously used here discarded most of the depth buffer's
+            // precision. Keep the complete model and grid in front of the
+            // camera while tightly bounding the useful depth interval.
+            linear.getWorldDirection(engine.cameraDirection);
+            engine.centerOffset.copy(engine.bounds.getCenter(engine.boundsCenter)).sub(linear.position);
+            const centerDepth = engine.centerOffset.dot(engine.cameraDirection);
+            const depthRadius = engine.modelSize * 0.75;
+            const near = Math.max(0, centerDepth - depthRadius);
+            const far = Math.max(centerDepth + depthRadius, near + engine.modelSize * 0.01, 1e-6);
+            if (linear.near !== near || linear.far !== far) {
+              linear.near = near;
+              linear.far = far;
+              linear.updateProjectionMatrix();
             }
           }
           if (engine.helper) engine.helper.update();
@@ -427,12 +464,13 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           const fitFov = Math.min(verticalFov, horizontalFov);
           const distance = radius / Math.max(Math.sin(fitFov / 2), 0.01) * 1.08;
           perspective.position.copy(center).addScaledVector(direction, distance);
-          perspective.near = Math.max(size / 100000, 1e-9);
-          perspective.far = Math.max(size * 1000, 10);
+          const perspectiveClip = InventorThree.computeInventorPerspectiveClipPlanes(size, distance - radius, distance);
+          perspective.near = perspectiveClip.near;
+          perspective.far = perspectiveClip.far;
           perspective.updateProjectionMatrix();
           linear.position.copy(perspective.position);
-          linear.near = -Math.max(size * 100, 10);
-          linear.far = Math.max(size * 100, 10);
+          linear.near = 0;
+          linear.far = Math.max(distance + size * 0.75, 1e-6);
           linear.zoom = 1;
           engine.orthoHeight = radius * 2.16;
           linear.left = -engine.orthoHeight * rect.width / Math.max(rect.height, 1) / 2;
