@@ -134,7 +134,9 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
             <div><strong>Rhino and FreeCAD</strong><span>.3dm models and visible Part/PartDesign geometry from .fcstd documents</span></div>
             <div><strong>Building models</strong><span>.ifc building geometry and .bim DotBIM scenes with element metadata</span></div>
             <div><strong>Packaged projects</strong><span>.zip workspaces and .faf Factory Assets with linked files</span></div>
-            <div><strong>Mesh and scene formats</strong><span>.glb, .gltf, .obj, .off, .stl, .ply, .fbx, .3mf, .dae, .usdz and more</span></div>
+            <div><strong>Mesh and scene formats</strong><span>.glb, .gltf, .obj, .off, .stl, .ply, .fbx, .3mf, .dae, .usdz, .md2 and more</span></div>
+            <div><strong>Animation and toolpaths</strong><span>.bvh motion capture and .gcode machine toolpaths</span></div>
+            <div><strong>LDraw models</strong><span>.ldr models and packed .mpd multipart documents</span></div>
             <div><strong>VRML worlds</strong><span>.wrl and .vrml models, plus gzip-compressed .wrz files</span></div>
             <div><strong>Demo3D simulation</strong><span>.demo3d projects and render-ready .raw3d scenes</span></div>
           </div>

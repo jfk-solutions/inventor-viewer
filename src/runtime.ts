@@ -9,10 +9,15 @@ export type CadRuntime = {
   STLExporter: any;
   USDZExporter: any;
   AMFLoader: any;
+  BVHLoader: any;
   ColladaLoader: any;
   DDSLoader: any;
   FBXLoader: any;
+  GCodeLoader: any;
   GLTFLoader: any;
+  LDrawLoader: any;
+  LDrawConditionalLineMaterial: any;
+  MD2Loader: any;
   MTLLoader: any;
   OBJLoader: any;
   PCDLoader: any;

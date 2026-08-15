@@ -11,13 +11,14 @@ export const SPECIAL_MODEL_EXTENSIONS = ["3dm", "bim", "fcstd", "ifc", "off"] as
 export const THREE_MODEL_EXTENSIONS = [
   "glb", "gltf", "obj", "stl", "ply", "fbx", "3mf", "amf", "dae", "3ds",
   "wrl", "vrml", "wrz", "vtk", "vtp", "pcd", "xyz", "vox", "usd", "usda", "usdc",
-  "usdz", "json",
+  "usdz", "json", "bvh", "gcode", "ldr", "mpd", "md2",
 ] as const;
 
 // Sidecar files may be selected alongside a model. The LoadingManager resolves
 // these from local object URLs, so nothing is uploaded to fetch dependencies.
 export const THREE_RESOURCE_EXTENSIONS = [
   "bin", "mtl", "png", "jpg", "jpeg", "webp", "avif", "bmp", "gif", "tga", "dds",
+  "dat",
 ] as const;
 
 const modelExtensions = new Set<string>([...CAD_MODEL_EXTENSIONS, ...SOLIDWORKS_MODEL_EXTENSIONS, ...THREE_MODEL_EXTENSIONS, ...DEMO3D_MODEL_EXTENSIONS, ...OCCT_MODEL_EXTENSIONS, ...SPECIAL_MODEL_EXTENSIONS]);

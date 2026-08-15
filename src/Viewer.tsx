@@ -83,6 +83,8 @@ function kindFor(path: string) {
     wrl: "VRML model", vrml: "VRML model", vtk: "VTK model", vtp: "VTK PolyData",
     pcd: "Point cloud", xyz: "XYZ point cloud", vox: "MagicaVoxel model", usd: "USD model",
     usda: "USD ASCII model", usdc: "USD binary model", usdz: "USDZ model", json: "Three.js scene",
+    bvh: "BVH motion capture", gcode: "G-code toolpath", ldr: "LDraw model", mpd: "LDraw multipart model",
+    md2: "Quake II model",
     step: "STEP model", stp: "STEP model", iges: "IGES model", igs: "IGES model",
     brep: "OpenCascade BREP", brp: "OpenCascade BREP", "3dm": "Rhino 3DM model",
     bim: "DotBIM model", fcstd: "FreeCAD document", ifc: "IFC building model", off: "OFF mesh",
@@ -427,6 +429,26 @@ async function loadThreeModel(
     } else if (format === "fbx") {
       model = await new runtime.FBXLoader(manager).loadAsync(path);
       animations = model.animations ?? [];
+    } else if (format === "bvh") {
+      const result = await new runtime.BVHLoader(manager).loadAsync(path);
+      model = new THREE.Group();
+      const rootBone = result.skeleton.bones[0];
+      rootBone.name ||= file.name;
+      const skeletonHelper = new THREE.SkeletonHelper(rootBone);
+      model.add(rootBone, skeletonHelper);
+      rootBone.updateMatrixWorld(true);
+      skeletonHelper.updateMatrixWorld(true);
+      animations = result.clip ? [result.clip] : [];
+    } else if (format === "gcode") {
+      model = await new runtime.GCodeLoader(manager).loadAsync(path);
+    } else if (format === "ldr" || format === "mpd") {
+      const loader = new runtime.LDrawLoader(manager);
+      loader.setConditionalLineMaterial(runtime.LDrawConditionalLineMaterial);
+      model = await loader.loadAsync(path);
+    } else if (format === "md2") {
+      const geometry = await new runtime.MD2Loader(manager).loadAsync(path);
+      model = meshFromGeometry(runtime, geometry, file.name);
+      animations = geometry.animations ?? [];
     } else if (format === "3mf") {
       model = await new runtime.ThreeMFLoader(manager).loadAsync(path);
     } else if (format === "amf") {
@@ -654,6 +676,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         perspective.position.set(6, 4.5, 7);
         linear.position.copy(perspective.position);
         const controls = new OrbitControls(perspective, canvas);
+        const clock = new THREE.Clock();
         controls.enableDamping = true;
         controls.dampingFactor = 0.075;
         controls.screenSpacePanning = true;
@@ -713,6 +736,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
 
         const animate = () => {
           if (disposed) return;
+          engine.mixer?.update(Math.min(clock.getDelta(), 0.1));
           controls.update();
           if (engine.model && engine.camera === perspective) {
             const surfaceDistance = engine.bounds.distanceToPoint(perspective.position);
@@ -813,6 +837,11 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         const releaseModel = () => {
           engine.stepSource = null;
           if (!engine.model) return;
+          if (engine.mixer) {
+            engine.mixer.stopAllAction();
+            engine.mixer.uncacheRoot(engine.model);
+            engine.mixer = null;
+          }
           scene.remove(engine.model);
           if (engine.model.userData?.solidworksDocument) {
             engine.model.userData.solidworksPreviewTexture?.dispose?.();
@@ -830,6 +859,11 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           engine.objectUrls = objectUrls;
           engine.stepSource = stepSource;
           scene.add(model);
+          if (model.animations?.length) {
+            engine.mixer = new THREE.AnimationMixer(model);
+            engine.mixer.clipAction(model.animations[0]).play();
+            clock.start();
+          }
           setModelTwoSided(model, twoSidedRef.current, THREE, engine.originalMaterialSides);
           frameObject(model);
           model.traverse((object: any) => {

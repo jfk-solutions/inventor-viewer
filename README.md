@@ -38,6 +38,10 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.pcd`, `.xyz` | Point-cloud data |
 | `.vox` | MagicaVoxel models |
 | `.json` | Three.js Object/Scene JSON |
+| `.bvh` | Biovision Hierarchy skeletons and motion-capture animation clips |
+| `.gcode` | CNC and 3D-printer toolpaths |
+| `.ldr`, `.mpd` | LDraw models and packed multipart documents; local `.dat` parts can be selected alongside them |
+| `.md2` | Quake II models with morph-target animation clips |
 | `.demo3d`, `.raw3d` | Demo3D/Emulate3D projects and render-ready RAW3D scenes, loaded through the lazy `@jfk-solutions/demo3d-file-format` integration |
 
 For assemblies, package the IAM or SLDASM and all referenced documents into one ZIP while retaining their relative paths. The viewer detects the workspace type, discovers candidate root documents and opens the assembly first. Missing Inventor references remain visible in the model metadata; the viewer never attempts to access Autodesk Vault.

@@ -6,10 +6,14 @@ import { PLYExporter } from "three/examples/jsm/exporters/PLYExporter.js";
 import { STLExporter } from "three/examples/jsm/exporters/STLExporter.js";
 import { USDZExporter } from "three/examples/jsm/exporters/USDZExporter.js";
 import { AMFLoader } from "three/examples/jsm/loaders/AMFLoader.js";
+import { BVHLoader } from "three/examples/jsm/loaders/BVHLoader.js";
 import { ColladaLoader } from "three/examples/jsm/loaders/ColladaLoader.js";
 import { DDSLoader } from "three/examples/jsm/loaders/DDSLoader.js";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
+import { GCodeLoader } from "three/examples/jsm/loaders/GCodeLoader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { LDrawLoader } from "three/examples/jsm/loaders/LDrawLoader.js";
+import { MD2Loader } from "three/examples/jsm/loaders/MD2Loader.js";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { PCDLoader } from "three/examples/jsm/loaders/PCDLoader.js";
@@ -24,6 +28,7 @@ import { VOXLoader, buildMesh as buildVOXMesh } from "three/examples/jsm/loaders
 import { VRMLLoader } from "three/examples/jsm/loaders/VRMLLoader.js";
 import { VTKLoader } from "three/examples/jsm/loaders/VTKLoader.js";
 import { XYZLoader } from "three/examples/jsm/loaders/XYZLoader.js";
+import { LDrawConditionalLineMaterial } from "three/examples/jsm/materials/LDrawConditionalLineMaterial.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import * as Inventor from "../../inventor-file-format/dist/index.js";
 import * as InventorThree from "../../inventor-file-format/dist/three/index.js";
@@ -48,7 +53,8 @@ function loadOpenCascade() {
 export {
   THREE, OrbitControls,
   GLTFExporter, OBJExporter, PLYExporter, STLExporter, USDZExporter,
-  AMFLoader, ColladaLoader, DDSLoader, FBXLoader, GLTFLoader, MTLLoader, OBJLoader,
+  AMFLoader, BVHLoader, ColladaLoader, DDSLoader, FBXLoader, GCodeLoader, GLTFLoader,
+  LDrawLoader, LDrawConditionalLineMaterial, MD2Loader, MTLLoader, OBJLoader,
   PCDLoader, PLYLoader, Rhino3dmLoader, STLLoader, TDSLoader, TGALoader, ThreeMFLoader, USDLoader,
   VOXLoader, buildVOXMesh, VRMLLoader, VTKLoader, XYZLoader, MeshoptDecoder,
   Inventor, InventorThree, InventorStep, SolidWorks, SolidWorksThree, Acad, loadOpenCascade,
