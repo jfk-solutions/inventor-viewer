@@ -29,7 +29,7 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.fcstd` | Visible FreeCAD Part and PartDesign BREP objects; archive decoding and OpenCascade are loaded only for FCStd files |
 | `.ifc` | IFC building geometry and element metadata through format-triggered `web-ifc` and its local WASM runtime |
 | `.bim`, `.off` | DotBIM scenes and OFF polygon meshes through lightweight built-in parsers |
-| `.zip` | Packaged Inventor, CATIA or SolidWorks workspaces with linked documents and relative paths preserved |
+| `.zip` | Packaged or mixed workspaces containing native CAD and supported direct-load model documents, with linked files and relative paths preserved |
 | `.faf` | Inventor Factory Asset packages |
 | `.glb`, `.gltf` | glTF 2.0 scenes, materials, textures and animations; local sidecar resources can be selected together |
 | `.obj` | Wavefront geometry, with optional `.mtl` and local texture files selected alongside it |

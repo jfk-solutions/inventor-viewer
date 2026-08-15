@@ -28,7 +28,7 @@ import {
 import { BrandIcon } from "./Brand";
 import { disposeDemo3DModel, loadDemo3DFile } from "./formats/demo3d";
 import { loadCadRuntime, type CadRuntime } from "./runtime";
-import { ACCEPTED_FILE_TYPES, fileExtension, isDirectModelFile } from "./formats";
+import { ACCEPTED_FILE_TYPES, fileExtension, isDirectModelFile, isResourceFile } from "./formats";
 import { loadOcctModel } from "./formats/step";
 import { createCatiaThreeGroup, disposeCatiaThreeGroup } from "./formats/catia";
 
@@ -888,34 +888,56 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           setStatus("Ready");
         };
 
+        const isZipWorkspace = files.length === 1 && /\.zip$/i.test(files[0].name);
+        let sharedZipProvider: any;
+        let sharedZipInventory: readonly any[] = [];
+        if (isZipWorkspace) {
+          setStatus("Indexing packaged workspace…");
+          setProgress(18);
+          sharedZipProvider = await Inventor.ZipFileProvider.open(new Inventor.BlobByteSource(files[0]));
+          sharedZipInventory = await sharedZipProvider.list();
+          // The Inventor workspace takes ownership of this provider below when
+          // applicable. Otherwise retain it here so cleanup still closes it.
+          workspace = sharedZipProvider;
+        }
+
+        const readSharedZipEntry = async (path: string) => {
+          const source = await sharedZipProvider?.open(path);
+          if (!source) throw new Error(`Could not read ${path} from the packaged workspace.`);
+          try { return await source.read(0, source.size); }
+          finally { await source.close?.(); }
+        };
+
         const solidWorksFiles = files.filter((file) => /\.(?:sldprt|sldasm|slddrw)$/i.test(file.name));
         let solidWorksWorkspace: any;
         if (solidWorksFiles.length) {
           setStatus("Reading SolidWorks workspace…");
           setProgress(22);
           solidWorksWorkspace = await SolidWorks.openSolidWorksWorkspace(solidWorksFiles.map((file) => ({ path: filePath(file), data: file })));
-        } else if (files.length === 1 && /\.zip$/i.test(files[0].name)) {
-          try {
-            solidWorksWorkspace = await SolidWorks.openSolidWorksWorkspace(files[0], { path: files[0].name });
-          } catch (cause) {
-            if ((cause as any)?.code !== "NO_SOLIDWORKS_FILES") throw cause;
+        } else if (sharedZipProvider) {
+          const entries = sharedZipInventory.filter((item: any) => /\.(?:sldprt|sldasm|slddrw)$/i.test(item.path));
+          if (entries.length) {
+            setStatus("Reading SolidWorks documents…");
+            setProgress(22);
+            const workspaceFiles = [];
+            for (const entry of entries) workspaceFiles.push({ path: entry.path, data: await readSharedZipEntry(entry.path) });
+            solidWorksWorkspace = await SolidWorks.openSolidWorksWorkspace(workspaceFiles);
           }
         }
 
+        let solidWorksRootOptions: RootOption[] = [];
+        let openSolidWorksRoot: ((path: string) => Promise<void>) | undefined;
         if (solidWorksWorkspace) {
-          workspace = solidWorksWorkspace;
           setStatus("Finding SolidWorks documents…");
-          setProgress(48);
+          setProgress(34);
           const candidates = await solidWorksWorkspace.findRootCandidates();
           const candidatePaths = new Set(candidates.map((item: any) => item.path.toLocaleLowerCase()));
-          const rootOptions = [...solidWorksWorkspace.entries]
+          solidWorksRootOptions = [...solidWorksWorkspace.entries]
             .sort((left: any, right: any) => Number(!candidatePaths.has(left.path.toLocaleLowerCase())) - Number(!candidatePaths.has(right.path.toLocaleLowerCase()))
               || left.path.localeCompare(right.path, undefined, { numeric: true }))
             .map((item: any) => ({ path: item.path, label: item.path, kind: kindFor(item.path) }));
-          if (!rootOptions.length) throw new Error("No supported SolidWorks document was found in this selection.");
-          setRoots(rootOptions);
 
-          const openSolidWorksRoot = async (path: string) => {
+          openSolidWorksRoot = async (path: string) => {
             if (disposed) return;
             const generation = ++rootGeneration;
             rootController?.abort();
@@ -950,9 +972,6 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
             }
             presentModel(loaded.model, loaded.objectUrls);
           };
-          rootLoaderRef.current = openSolidWorksRoot;
-          await openSolidWorksRoot(rootOptions[0].path);
-          return;
         }
 
         const catiaFiles = files.filter((file) => /\.(?:catpart|catproduct|catshape|cgr)$/i.test(file.name));
@@ -961,23 +980,23 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           setStatus("Reading CATIA workspace…");
           setProgress(22);
           catiaWorkspace = await Catia.openCatiaWorkspace(files);
-        } else if (files.length === 1 && /\.zip$/i.test(files[0].name)) {
-          try {
-            catiaWorkspace = await Catia.openCatiaWorkspace(files[0]);
-          } catch (cause) {
-            if ((cause as any)?.code !== "WORKSPACE_EMPTY") throw cause;
-          }
+        } else if (sharedZipProvider && sharedZipInventory.some((item: any) => /\.(?:catpart|catproduct|catshape|cgr)$/i.test(item.path))) {
+          setStatus("Reading CATIA workspace…");
+          setProgress(36);
+          catiaWorkspace = await Catia.openCatiaWorkspace({
+            list: async () => sharedZipInventory,
+            read: readSharedZipEntry,
+          });
         }
 
+        let catiaRootOptions: RootOption[] = [];
+        let openCatiaRoot: ((path: string) => Promise<void>) | undefined;
         if (catiaWorkspace) {
-          workspace = catiaWorkspace;
           setStatus("Finding CATIA documents…");
-          setProgress(48);
-          const rootOptions = catiaWorkspace.rootPaths.map((path: string) => ({ path, label: path, kind: kindFor(path) }));
-          if (!rootOptions.length) throw new Error("No supported CATIA document was found in this selection.");
-          setRoots(rootOptions);
+          setProgress(40);
+          catiaRootOptions = catiaWorkspace.rootPaths.map((path: string) => ({ path, label: path, kind: kindFor(path) }));
 
-          const openCatiaRoot = async (path: string) => {
+          openCatiaRoot = async (path: string) => {
             if (disposed) return;
             const generation = ++rootGeneration;
             rootController?.abort();
@@ -1010,22 +1029,20 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
             }
             presentModel(model);
           };
-          rootLoaderRef.current = openCatiaRoot;
-          await openCatiaRoot(rootOptions[0].path);
-          return;
         }
 
         const directFiles = files.filter((file) => isDirectModelFile(file.name));
+        const directFilesByPath = new Map(directFiles.map((file) => [filePath(file).toLocaleLowerCase(), file]));
+        const directRootOptions = directFiles.map((file) => ({ path: filePath(file), label: filePath(file), kind: kindFor(file.name) }));
+        let openDirectRoot: ((path: string) => Promise<void>) | undefined;
         if (directFiles.length) {
-          const rootOptions = directFiles.map((file) => ({ path: filePath(file), label: filePath(file), kind: kindFor(file.name) }));
-          setRoots(rootOptions);
-          const openDirectRoot = async (path: string) => {
+          openDirectRoot = async (path: string) => {
             const generation = ++rootGeneration;
             rootController?.abort();
             const controller = new AbortController();
             rootController = controller;
             const isCurrent = () => !disposed && !controller.signal.aborted && generation === rootGeneration;
-            const file = directFiles.find((candidate) => filePath(candidate) === path);
+            const file = directFilesByPath.get(path.toLocaleLowerCase());
             if (!file) throw new Error(`Could not find ${path} in the selected files.`);
             setActiveRoot(path);
             setTree(null);
@@ -1047,43 +1064,102 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
             setProgress(86);
             presentModel(loaded.model, loaded.objectUrls);
           };
-          rootLoaderRef.current = openDirectRoot;
-          await openDirectRoot(rootOptions[0].path);
-          return;
         }
 
-        setStatus("Reading workspace…");
-        setProgress(22);
+        const archiveDirectEntries = sharedZipInventory.filter((item: any) => isDirectModelFile(item.path));
+        const archiveDirectEntriesByPath = new Map(archiveDirectEntries.map((item: any) => [item.path.toLocaleLowerCase(), item]));
+        const archiveDirectRootOptions = archiveDirectEntries.map((item: any) => ({ path: item.path, label: item.path, kind: kindFor(item.path) }));
+        const archiveFileCache = new Map<string, Promise<File>>();
+        const extractArchiveFile = (entry: any) => {
+          const key = entry.path.toLocaleLowerCase();
+          let pending = archiveFileCache.get(key);
+          if (!pending) {
+            pending = readSharedZipEntry(entry.path).then((bytes) => {
+              const name = entry.path.replace(/\\/g, "/").split("/").pop() || "archive-entry";
+              const file = new File([bytes], name);
+              Object.defineProperty(file, "webkitRelativePath", { configurable: true, value: entry.path.replace(/\\/g, "/") });
+              return file;
+            });
+            archiveFileCache.set(key, pending);
+          }
+          return pending;
+        };
+        let openArchiveDirectRoot: ((path: string) => Promise<void>) | undefined;
+        if (archiveDirectEntries.length) {
+          openArchiveDirectRoot = async (path: string) => {
+            const generation = ++rootGeneration;
+            rootController?.abort();
+            const controller = new AbortController();
+            rootController = controller;
+            const isCurrent = () => !disposed && !controller.signal.aborted && generation === rootGeneration;
+            const entry = archiveDirectEntriesByPath.get(path.toLocaleLowerCase());
+            if (!entry) throw new Error(`Could not find ${path} in the packaged workspace.`);
+            setActiveRoot(path);
+            setTree(null);
+            clearSelection();
+            setError(null);
+            setStatus(`Extracting ${path}…`);
+            setProgress(35);
+            releaseModel();
+            const normalizedPath = path.replace(/\\/g, "/");
+            const directory = normalizedPath.includes("/") ? normalizedPath.slice(0, normalizedPath.lastIndexOf("/") + 1).toLocaleLowerCase() : "";
+            const companionEntries = sharedZipInventory.filter((item: any) => isResourceFile(item.path)
+              && (!directory || item.path.replace(/\\/g, "/").toLocaleLowerCase().startsWith(directory)));
+            const modelFile = await extractArchiveFile(entry);
+            const companionFiles = await Promise.all(companionEntries.map(extractArchiveFile));
+            if (!isCurrent()) return;
+            const loaded = await loadThreeModel(runtime, modelFile, [modelFile, ...companionFiles], (nextStatus, nextProgress) => {
+              if (!isCurrent()) return;
+              setStatus(nextStatus);
+              setProgress(nextProgress);
+            });
+            if (!isCurrent()) {
+              if (!disposeCatiaThreeGroup(loaded.model) && !disposeDemo3DModel(loaded.model)) InventorThree.disposeInventorThreeGroup?.(loaded.model);
+              for (const url of loaded.objectUrls) URL.revokeObjectURL(url);
+              return;
+            }
+            setProgress(86);
+            presentModel(loaded.model, loaded.objectUrls);
+          };
+        }
+
+        setStatus("Reading Inventor workspace…");
+        setProgress(42);
         const first = files[0];
         const firstName = first.name.toLowerCase();
-        const provider = files.length === 1 && firstName.endsWith(".zip")
-          ? await Inventor.ZipFileProvider.open(new Inventor.BlobByteSource(first))
+        const provider = sharedZipProvider
+          ?? (files.length === 1 && firstName.endsWith(".zip")
+            ? await Inventor.ZipFileProvider.open(new Inventor.BlobByteSource(first))
           : files.length === 1 && firstName.endsWith(".faf")
             ? await Inventor.FactoryAssetFileProvider.open(new Inventor.BlobByteSource(first))
-            : new Inventor.MemoryFileProvider(Object.fromEntries(files.map((file) => [(file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name, file])));
-        workspace = await Inventor.openInventorWorkspace(provider, {
-          decodeLevel: "render",
-          discoverAppearanceLibraries: true,
-          onProgress: (event: any) => {
-            const ratio = event.total ? event.completed / event.total : 0;
-            setProgress(Math.min(56, 24 + ratio * 32));
-            setStatus(event.path ? `Reading ${event.path}…` : "Reading workspace…");
-          },
-        });
-        const dwgDecoder = Inventor.createAcadTsDwgDecoder({ unitScaleToCentimetres: 0.1, layout: "model" });
-        workspace.registerExternalDecoder(dwgDecoder);
-        const inventory = await workspace.provider.list();
+            : new Inventor.MemoryFileProvider(Object.fromEntries(files.map((file) => [(file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name, file]))));
+        workspace ??= provider;
+        const inventory = sharedZipProvider ? sharedZipInventory : await provider.list();
+        const hasInventorDocuments = inventory.some((item: any) => /\.(?:ipt|iam|idw|ipn|ide|dwg|dxf)$/i.test(item.path));
+        let inventorWorkspace: any;
+        if (hasInventorDocuments) {
+          inventorWorkspace = await Inventor.openInventorWorkspace(provider, {
+            decodeLevel: "render",
+            discoverAppearanceLibraries: true,
+            onProgress: (event: any) => {
+              const ratio = event.total ? event.completed / event.total : 0;
+              setProgress(Math.min(56, 42 + ratio * 14));
+              setStatus(event.path ? `Reading ${event.path}…` : "Reading Inventor workspace…");
+            },
+          });
+          workspace = inventorWorkspace;
+          const dwgDecoder = Inventor.createAcadTsDwgDecoder({ unitScaleToCentimetres: 0.1, layout: "model" });
+          inventorWorkspace.registerExternalDecoder(dwgDecoder);
+        }
         const rootMap = new Map<string, RootOption>();
-        for (const item of workspace.rootCandidates ?? []) rootMap.set(item.path.toLowerCase(), { path: item.path, label: item.path, kind: kindFor(item.path) });
+        for (const item of inventorWorkspace?.rootCandidates ?? []) rootMap.set(item.path.toLowerCase(), { path: item.path, label: item.path, kind: kindFor(item.path) });
         for (const item of inventory) if (/\.(dwg|dxf)$/i.test(item.path)) rootMap.set(item.path.toLowerCase(), { path: item.path, label: item.path, kind: kindFor(item.path) });
-        const rootOptions = [...rootMap.values()].sort((left, right) => {
+        const inventorRootOptions = [...rootMap.values()].sort((left, right) => {
           const priority = (item: RootOption) => extension(item.path) === "iam" ? 0 : extension(item.path) === "ipt" ? 1 : 2;
           return priority(left) - priority(right) || left.path.localeCompare(right.path, undefined, { numeric: true });
         });
-        if (!rootOptions.length) throw new Error("No supported CAD document was found in this selection.");
-        setRoots(rootOptions);
 
-        const openRoot = async (path: string) => {
+        const openInventorRoot = async (path: string) => {
           if (disposed) return;
           const generation = ++rootGeneration;
           rootController?.abort();
@@ -1102,7 +1178,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
             setProgress(58);
             releaseModel();
             if (/\.dxf$/i.test(path)) {
-              const source = await workspace.provider.open(path);
+              const source = await inventorWorkspace.provider.open(path);
               if (!source) throw new Error(`Could not read ${path}.`);
               const bytes = await source.read(0, source.size);
               await source.close?.();
@@ -1112,19 +1188,19 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
               model = buildDxfGroup(runtime, bytes).group;
             } else {
               const isDwg = /\.dwg$/i.test(path);
-              const document = isDwg ? undefined : await workspace.openDocument(path, { signal });
+              const document = isDwg ? undefined : await inventorWorkspace.openDocument(path, { signal });
               if (!isCurrent()) return;
               setStatus(isDwg ? "Decoding AutoCAD geometry…" : "Resolving linked components…");
               setProgress(68);
               const renderScene = isDwg
-                ? await Inventor.createInventorExternalRenderScene(workspace, path)
-                : await Inventor.createInventorRenderScene(workspace, document, { resolveReferences: true, showWireframeFallback: true, signal });
+                ? await Inventor.createInventorExternalRenderScene(inventorWorkspace, path)
+                : await Inventor.createInventorRenderScene(inventorWorkspace, document, { resolveReferences: true, showWireframeFallback: true, signal });
               if (!isCurrent()) return;
               setStatus("Preparing materials and geometry…");
               setProgress(82);
               let textures: any[] = [];
               if (!isDwg) {
-                const appearance = await InventorThree.loadInventorAppearanceTextures(renderScene, workspace, {
+                const appearance = await InventorThree.loadInventorAppearanceTextures(renderScene, inventorWorkspace, {
                   signal,
                   onProgress: (event: any) => isCurrent() && event.total && setProgress(82 + (event.completed / event.total) * 8),
                 });
@@ -1143,14 +1219,38 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
               InventorThree.disposeInventorThreeGroup?.(model);
               return;
             }
-            presentModel(model, [], /\.(?:ipt|iam)$/i.test(path) ? { workspace, path } : null);
+            presentModel(model, [], /\.(?:ipt|iam)$/i.test(path) ? { workspace: inventorWorkspace, path } : null);
           } catch (cause) {
             if (!isCurrent()) return;
             throw cause;
           }
         };
-        rootLoaderRef.current = openRoot;
-        await openRoot(rootOptions[0].path);
+
+        const rootOptions = [...inventorRootOptions, ...solidWorksRootOptions, ...catiaRootOptions, ...directRootOptions, ...archiveDirectRootOptions];
+        if (!rootOptions.length) throw new Error("No supported CAD document was found in this selection.");
+        setRoots(rootOptions);
+        const openWorkspaceRoot = async (path: string) => {
+          if (/\.(?:sldprt|sldasm|slddrw)$/i.test(path)) {
+            if (!openSolidWorksRoot) throw new Error(`The SolidWorks workspace for ${path} is unavailable.`);
+            return openSolidWorksRoot(path);
+          }
+          if (/\.(?:catpart|catproduct|catshape|cgr)$/i.test(path)) {
+            if (!openCatiaRoot) throw new Error(`The CATIA workspace for ${path} is unavailable.`);
+            return openCatiaRoot(path);
+          }
+          if (archiveDirectEntriesByPath.has(path.toLocaleLowerCase())) {
+            if (!openArchiveDirectRoot) throw new Error(`The packaged model loader for ${path} is unavailable.`);
+            return openArchiveDirectRoot(path);
+          }
+          if (directFilesByPath.has(path.toLocaleLowerCase())) {
+            if (!openDirectRoot) throw new Error(`The model loader for ${path} is unavailable.`);
+            return openDirectRoot(path);
+          }
+          if (!inventorWorkspace) throw new Error(`The Inventor workspace for ${path} is unavailable.`);
+          return openInventorRoot(path);
+        };
+        rootLoaderRef.current = openWorkspaceRoot;
+        await openWorkspaceRoot(rootOptions[0].path);
       } catch (cause) {
         console.error(cause);
         if (!disposed) {

@@ -27,6 +27,7 @@ const modelExtensions = new Set<string>([...CAD_MODEL_EXTENSIONS, ...SOLIDWORKS_
 const acceptedExtensions = new Set<string>([...modelExtensions, ...THREE_RESOURCE_EXTENSIONS]);
 const threeModelExtensions = new Set<string>(THREE_MODEL_EXTENSIONS);
 const directModelExtensions = new Set<string>([...THREE_MODEL_EXTENSIONS, ...DEMO3D_MODEL_EXTENSIONS, ...OCCT_MODEL_EXTENSIONS, ...SPECIAL_MODEL_EXTENSIONS]);
+const resourceExtensions = new Set<string>(THREE_RESOURCE_EXTENSIONS);
 
 export const ACCEPTED_FILE_TYPES = [...acceptedExtensions].map((value) => `.${value}`).join(",");
 
@@ -48,4 +49,8 @@ export function isThreeModelFile(path: string) {
 
 export function isDirectModelFile(path: string) {
   return directModelExtensions.has(fileExtension(path));
+}
+
+export function isResourceFile(path: string) {
+  return resourceExtensions.has(fileExtension(path));
 }
