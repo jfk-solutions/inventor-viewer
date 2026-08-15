@@ -2,6 +2,8 @@ export const CAD_MODEL_EXTENSIONS = ["ipt", "iam", "idw", "ipn", "ide", "dwg", "
 
 export const SOLIDWORKS_MODEL_EXTENSIONS = ["sldprt", "sldasm", "slddrw"] as const;
 
+export const CATIA_MODEL_EXTENSIONS = ["catpart", "catproduct", "catshape", "cgr"] as const;
+
 export const DEMO3D_MODEL_EXTENSIONS = ["demo3d", "raw3d"] as const;
 
 export const OCCT_MODEL_EXTENSIONS = ["step", "stp", "iges", "igs", "brep", "brp"] as const;
@@ -21,7 +23,7 @@ export const THREE_RESOURCE_EXTENSIONS = [
   "dat",
 ] as const;
 
-const modelExtensions = new Set<string>([...CAD_MODEL_EXTENSIONS, ...SOLIDWORKS_MODEL_EXTENSIONS, ...THREE_MODEL_EXTENSIONS, ...DEMO3D_MODEL_EXTENSIONS, ...OCCT_MODEL_EXTENSIONS, ...SPECIAL_MODEL_EXTENSIONS]);
+const modelExtensions = new Set<string>([...CAD_MODEL_EXTENSIONS, ...SOLIDWORKS_MODEL_EXTENSIONS, ...CATIA_MODEL_EXTENSIONS, ...THREE_MODEL_EXTENSIONS, ...DEMO3D_MODEL_EXTENSIONS, ...OCCT_MODEL_EXTENSIONS, ...SPECIAL_MODEL_EXTENSIONS]);
 const acceptedExtensions = new Set<string>([...modelExtensions, ...THREE_RESOURCE_EXTENSIONS]);
 const threeModelExtensions = new Set<string>(THREE_MODEL_EXTENSIONS);
 const directModelExtensions = new Set<string>([...THREE_MODEL_EXTENSIONS, ...DEMO3D_MODEL_EXTENSIONS, ...OCCT_MODEL_EXTENSIONS, ...SPECIAL_MODEL_EXTENSIONS]);

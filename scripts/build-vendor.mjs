@@ -20,6 +20,8 @@ const fflatePackage = path.join(root, "node_modules", "fflate");
 const fflateTarget = path.join(root, "public", "vendor", "fflate");
 const solidWorksLicense = path.join(root, "..", "solidworks-file-format", "LICENSE");
 const solidWorksNotices = path.join(root, "..", "solidworks-file-format", "THIRD_PARTY_NOTICES.md");
+const catiaLicense = path.join(root, "..", "catia-file-format", "LICENSE");
+const catiaNotices = path.join(root, "..", "catia-file-format", "THIRD_PARTY_NOTICES.md");
 const licenseTarget = path.join(root, "public", "vendor", "licenses");
 
 await mkdir(path.dirname(outfile), { recursive: true });
@@ -77,6 +79,8 @@ await copyFile(path.join(fflatePackage, "LICENSE"), path.join(fflateTarget, "LIC
 await mkdir(licenseTarget, { recursive: true });
 await copyFile(solidWorksLicense, path.join(licenseTarget, "solidworks-file-format-LICENSE"));
 await copyFile(solidWorksNotices, path.join(licenseTarget, "solidworks-file-format-NOTICES.md"));
+await copyFile(catiaLicense, path.join(licenseTarget, "catia-file-format-LICENSE"));
+await copyFile(catiaNotices, path.join(licenseTarget, "catia-file-format-NOTICES.md"));
 
 // Generated template literals can inherit trailing spaces from upstream shader
 // sources. Keep the committed browser bundle clean and reproducible.

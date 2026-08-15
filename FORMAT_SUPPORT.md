@@ -27,6 +27,7 @@ Links in **Open-source information or library** are implementation leads, not de
 | `.bim` | DotBIM | Open BIM tools using the dotbim format | Yes | Open | Current built-in parser; public [dotbim specification and libraries](https://github.com/paireks/dotbim) |
 | `.brep`, `.brp` | Open CASCADE B-Rep | Open CASCADE and compatible CAD tools | Yes | Open | Current lazy [Open CASCADE Technology](https://github.com/Open-Cascade-SAS/OCCT) reader and tessellator |
 | `.bvh` | Biovision Hierarchy animation | Motion-capture and animation tools | Yes | Open | Current [Three.js BVHLoader](https://github.com/mrdoob/three.js/blob/dev/examples/jsm/loaders/BVHLoader.js) |
+| `.catpart`, `.catproduct`, `.catshape`, `.cgr` | CATIA V5 part, product, shape and graphical representation | Dassault Systèmes CATIA | Yes | Closed | Current MIT-licensed `catia-file-format` browser reader; native geometry carriers, references and hierarchy are decoded, with explicit diagnostics for approximated surfaces and fallback assembly layout |
 | `.dae` | COLLADA | Khronos interchange; Onshape, Blender, Maya and other 3D tools | Yes | Open | Current Three.js loader; [OpenCOLLADA](https://github.com/KhronosGroup/OpenCOLLADA) and [Assimp](https://github.com/assimp/assimp) |
 | `.demo3d` | Demo3D project | Emulate3D / Demo3D | Yes | Closed | Current MIT-licensed [demo3d-file-format](https://github.com/JFK-Solutions/demo3d-file-format) reader |
 | `.dwg` | AutoCAD Drawing | Autodesk AutoCAD, Fusion and compatible CAD tools | Yes | Closed | Current MIT-licensed [acad-ts](https://github.com/node-projects/acad-ts); GPL [LibreDWG](https://github.com/LibreDWG/libredwg) |
@@ -65,14 +66,13 @@ Links in **Open-source information or library** are implementation leads, not de
 | `.vtk` | VTK legacy dataset | Visualization Toolkit (VTK) | Yes | Open | Current Three.js loader; official [VTK](https://github.com/Kitware/VTK) |
 | `.vtp` | VTK XML PolyData | Visualization Toolkit (VTK) | Yes | Open | Current Three.js loader; official [VTK](https://github.com/Kitware/VTK) |
 | `.xyz` | XYZ point cloud | Point-cloud and scanning tools | Yes | Open | Current Three.js loader; simple documented text layout with ecosystem-specific variants |
-| `.zip` | Packaged Inventor or SolidWorks workspace | Viewer package containing native CAD files and dependencies | Yes | Open | Current Inventor and SolidWorks workspace readers with automatic package detection |
+| `.zip` | Packaged Inventor, CATIA or SolidWorks workspace | Viewer package containing native CAD files and dependencies | Yes | Open | Current Inventor, CATIA and SolidWorks workspace readers with automatic package detection |
 | `.3dxml` | 3DXML | Dassault Systèmes CATIA / 3DEXPERIENCE | No | Closed | No complete open-source reader identified; [Assimp tracks the restrictive format](https://github.com/assimp/assimp/issues/3145) |
 | `.abc` | Alembic | Film/VFX DCC tools | No | Open | Official [Alembic](https://github.com/alembic/alembic) library |
 | `.asm` | Solid Edge or Creo assembly; extension also used by other CAD systems | Siemens Solid Edge or PTC Creo, depending on file origin | No | Closed | Official [Solid Edge API](https://support.industrysoftware.automation.siemens.com/trainings/se/106/api/SolidEdgeFramework~Application~GetSaveAsFileName.html) and [Creo file-type documentation](https://support.ptc.com/help/creo/creo_pma/r12/usascii/fundamentals/fundamentals/About_File_Types.html); no dependable complete open-source reader identified |
 | `.blend` | Blender project | Blender | No | Closed | [Blender](https://github.com/blender/blender) itself is open source; Assimp deprecated its importer because the native format is undocumented and unstable |
 | `.c4d` | Cinema 4D project | Maxon Cinema 4D | No | Closed | Assimp documents optional C4D support that depends on a non-free external SDK; no independent complete OSS reader identified |
 | `.cam360` | Fusion manufacturing/CAM archive | Autodesk Fusion Manufacture | No | Closed | [Official Autodesk format list](https://help.autodesk.com/view/fusion360/ENU/?guid=TPD-SUPPORTED-FILE-FORMATS); no dependable complete open-source reader identified |
-| `.catpart`, `.catproduct` | CATIA part / product | Dassault Systèmes CATIA | No | Closed | No dependable complete open-source reader identified |
 | `.dft` | Solid Edge draft/drawing | Siemens Solid Edge | No | Closed | [Official Solid Edge API information](https://support.industrysoftware.automation.siemens.com/trainings/se/106/api/SolidEdgeFramework~Application~GetSaveAsFileName.html); not a standalone 3D model and no dependable complete open-source reader identified |
 | `.drw` | Creo drawing | PTC Creo Parametric | No | Closed | [Official PTC file-type documentation](https://support.ptc.com/help/creo/creo_pma/r12/usascii/fundamentals/fundamentals/About_File_Types.html); not a standalone 3D model and no dependable complete open-source reader identified |
 | `.drc` | Draco compressed mesh | Google Draco | No | Open | Official [Draco](https://github.com/google/draco) library; often used inside glTF rather than standalone |
@@ -134,4 +134,4 @@ These files may be selected alongside a supported model when it references exter
 | `.mtl` | Wavefront OBJ material library |
 | `.png`, `.jpg`, `.jpeg`, `.webp`, `.avif`, `.bmp`, `.gif`, `.tga`, `.dds` | Texture image |
 
-The source of truth for accepted extensions is [`src/formats.ts`](./src/formats.ts).
+The source of truth for accepted extensions is [`src/formats/index.ts`](./src/formats/index.ts).

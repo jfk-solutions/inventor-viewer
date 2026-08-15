@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "A private, browser-based viewer for Autodesk Inventor, SolidWorks, AutoCAD, Demo3D and common 3D formats.",
+  "description": "A private, browser-based viewer for Autodesk Inventor, CATIA, SolidWorks, AutoCAD, Demo3D and common 3D formats.",
   "license": "UNLICENSED",
   "scripts": {
     "dev": "vite",

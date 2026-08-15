@@ -30,6 +30,7 @@ import { disposeDemo3DModel, loadDemo3DFile } from "./formats/demo3d";
 import { loadCadRuntime, type CadRuntime } from "./runtime";
 import { ACCEPTED_FILE_TYPES, fileExtension, isDirectModelFile } from "./formats";
 import { loadOcctModel } from "./formats/step";
+import { createCatiaThreeGroup, disposeCatiaThreeGroup } from "./formats/catia";
 
 type ViewerProps = {
   files: File[];
@@ -76,6 +77,7 @@ function extension(path: string) {
 function kindFor(path: string) {
   return ({
     iam: "Assembly", ipt: "Part", idw: "Drawing", ipn: "Presentation", ide: "iFeature",
+    catproduct: "CATIA assembly", catpart: "CATIA part", catshape: "CATIA shape", cgr: "CATIA graphical representation",
     sldasm: "SolidWorks assembly", sldprt: "SolidWorks part", slddrw: "SolidWorks drawing",
     dwg: "AutoCAD drawing", dxf: "DXF drawing", glb: "Binary glTF", gltf: "glTF model",
     obj: "Wavefront model", stl: "STL mesh", ply: "PLY model", fbx: "FBX model",
@@ -138,8 +140,8 @@ function objectProperties(object: any, hit?: any): PropertySection[] {
   if (!object) return [];
   object.updateWorldMatrix?.(true, false);
   const position = object.getWorldPosition ? object.getWorldPosition(object.position.clone()) : object.position;
-  const metadata = object.userData?.inventor ?? object.userData?.solidworks ?? object.userData?.raw3d ?? object.userData?.demo3d ?? {};
-  const metadataTitle = object.userData?.inventor ? "Inventor metadata" : object.userData?.solidworks ? "SolidWorks metadata" : object.userData?.raw3d ? "RAW3D metadata" : "Demo3D metadata";
+  const metadata = object.userData?.inventor ?? object.userData?.solidworks ?? object.userData?.catia ?? object.userData?.raw3d ?? object.userData?.demo3d ?? {};
+  const metadataTitle = object.userData?.inventor ? "Inventor metadata" : object.userData?.solidworks ? "SolidWorks metadata" : object.userData?.catia ? "CATIA metadata" : object.userData?.raw3d ? "RAW3D metadata" : "Demo3D metadata";
   const primary = [
     { name: "Name", value: object.name || metadata.name || "Unnamed object" },
     { name: "Type", value: metadata.kind ? cleanName(metadata.kind) : object.type },
@@ -185,10 +187,10 @@ function IconForKind({ kind }: { kind: string }) {
 }
 
 function buildTree(object: any, prefix = "root", depth = 0): TreeItem {
-  const kind = cleanName(object.userData?.inventor?.kind ?? object.userData?.solidworks?.kind ?? object.userData?.raw3d?.kind ?? object.userData?.demo3d?.kind ?? object.type ?? "Object");
+  const kind = cleanName(object.userData?.inventor?.kind ?? object.userData?.solidworks?.kind ?? object.userData?.catia?.kind ?? object.userData?.raw3d?.kind ?? object.userData?.demo3d?.kind ?? object.type ?? "Object");
   return {
     id: `${prefix}-${object.id}`,
-    label: object.name || object.userData?.inventor?.name || object.userData?.solidworks?.name || object.userData?.raw3d?.name || object.userData?.demo3d?.name || kind,
+    label: object.name || object.userData?.inventor?.name || object.userData?.solidworks?.name || object.userData?.catia?.name || object.userData?.raw3d?.name || object.userData?.demo3d?.name || kind,
     kind,
     object,
     children: depth > 7 ? [] : (object.children ?? [])
@@ -661,7 +663,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         setProgress(10);
         const runtime = await loadCadRuntime();
         if (disposed) return;
-        const { THREE, OrbitControls, Inventor, InventorThree, SolidWorks, SolidWorksThree } = runtime;
+        const { THREE, OrbitControls, Inventor, InventorThree, Catia, SolidWorks, SolidWorksThree } = runtime;
         const canvas = canvasRef.current!;
         const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: "high-performance" });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -847,7 +849,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           if (engine.model.userData?.solidworksDocument) {
             engine.model.userData.solidworksPreviewTexture?.dispose?.();
             SolidWorksThree.disposeSolidWorksThreeGroup?.(engine.model);
-          } else if (!disposeDemo3DModel(engine.model)) InventorThree.disposeInventorThreeGroup?.(engine.model);
+          } else if (!disposeCatiaThreeGroup(engine.model) && !disposeDemo3DModel(engine.model)) InventorThree.disposeInventorThreeGroup?.(engine.model);
           for (const url of engine.objectUrls ?? []) URL.revokeObjectURL(url);
           engine.objectUrls = [];
           engine.model = null;
@@ -953,6 +955,66 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           return;
         }
 
+        const catiaFiles = files.filter((file) => /\.(?:catpart|catproduct|catshape|cgr)$/i.test(file.name));
+        let catiaWorkspace: any;
+        if (catiaFiles.length) {
+          setStatus("Reading CATIA workspace…");
+          setProgress(22);
+          catiaWorkspace = await Catia.openCatiaWorkspace(files);
+        } else if (files.length === 1 && /\.zip$/i.test(files[0].name)) {
+          try {
+            catiaWorkspace = await Catia.openCatiaWorkspace(files[0]);
+          } catch (cause) {
+            if ((cause as any)?.code !== "WORKSPACE_EMPTY") throw cause;
+          }
+        }
+
+        if (catiaWorkspace) {
+          workspace = catiaWorkspace;
+          setStatus("Finding CATIA documents…");
+          setProgress(48);
+          const rootOptions = catiaWorkspace.rootPaths.map((path: string) => ({ path, label: path, kind: kindFor(path) }));
+          if (!rootOptions.length) throw new Error("No supported CATIA document was found in this selection.");
+          setRoots(rootOptions);
+
+          const openCatiaRoot = async (path: string) => {
+            if (disposed) return;
+            const generation = ++rootGeneration;
+            rootController?.abort();
+            const controller = new AbortController();
+            rootController = controller;
+            const isCurrent = () => !disposed && !controller.signal.aborted && generation === rootGeneration;
+            setActiveRoot(path);
+            setTree(null);
+            clearSelection();
+            setError(null);
+            setStatus(`Parsing ${path}…`);
+            setProgress(58);
+            releaseModel();
+            const document = await catiaWorkspace.openDocument(path);
+            if (!isCurrent()) return;
+            setStatus(document.kind === "product" ? "Resolving linked CATIA components…" : "Decoding CATIA geometry…");
+            setProgress(70);
+            const renderScene = await Catia.createCatiaRenderScene(catiaWorkspace, document, { resolveReferences: true });
+            if (!isCurrent()) return;
+            if (!renderScene.meshes.length && !renderScene.lineSets.length) {
+              const detail = renderScene.diagnostics.find((item: any) => item.severity === "warning")?.message;
+              throw new Error(detail ?? `No supported 3D geometry was decoded from ${path}. For CATProduct assemblies, select or ZIP the referenced CATPart files too.`);
+            }
+            setStatus("Preparing CATIA materials and geometry…");
+            setProgress(84);
+            const model = createCatiaThreeGroup(runtime, renderScene, document);
+            if (!isCurrent()) {
+              disposeCatiaThreeGroup(model);
+              return;
+            }
+            presentModel(model);
+          };
+          rootLoaderRef.current = openCatiaRoot;
+          await openCatiaRoot(rootOptions[0].path);
+          return;
+        }
+
         const directFiles = files.filter((file) => isDirectModelFile(file.name));
         if (directFiles.length) {
           const rootOptions = directFiles.map((file) => ({ path: filePath(file), label: filePath(file), kind: kindFor(file.name) }));
@@ -978,7 +1040,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
               setProgress(nextProgress);
             });
             if (!isCurrent()) {
-              if (!disposeDemo3DModel(loaded.model)) InventorThree.disposeInventorThreeGroup?.(loaded.model);
+              if (!disposeCatiaThreeGroup(loaded.model) && !disposeDemo3DModel(loaded.model)) InventorThree.disposeInventorThreeGroup?.(loaded.model);
               for (const url of loaded.objectUrls) URL.revokeObjectURL(url);
               return;
             }
@@ -1247,7 +1309,6 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           schema: "AP242",
           assemblyMode: "preserve",
           signal: exportController!.signal,
-          loadOpenCascade: runtime.loadOpenCascade,
           onProgress: (event: { phase: string; completed: number; total: number; path?: string }) => {
             const label = STEP_PHASE_LABELS[event.phase] ?? cleanName(event.phase);
             const count = event.total > 1 ? ` · ${event.completed.toLocaleString()}/${event.total.toLocaleString()}` : "";
@@ -1400,7 +1461,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           <div className="loading-icon">{error ? <X /> : <LoaderCircle className="spin" />}</div>
           <div><strong>{status}</strong><span>{error ?? "Large assemblies can take a moment — all processing stays on this device."}</span></div>
           {!error && <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>}
-          {error && <button type="button" onClick={onClose}>Back to start</button>}
+          {error && <button className="loading-dismiss" type="button" onClick={() => { setError(null); setStatus("Ready"); setProgress(100); }} aria-label="Close message" title="Close message"><X size={16} /></button>}
         </div>}
 
         <div className="camera-hint"><span><b>Left drag</b> orbit</span><span><b>Right drag</b> pan</span><span><b>Scroll</b> zoom</span><span><b>Double-click</b> focus</span></div>
