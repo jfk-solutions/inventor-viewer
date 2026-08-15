@@ -23,7 +23,7 @@ The repository is designed for GitHub Pages. The complete minimized CAD runtime 
 | `.fbx`, `.dae`, `.3ds` | FBX, Collada and 3D Studio interchange models |
 | `.3mf`, `.amf` | 3D manufacturing models |
 | `.usd`, `.usda`, `.usdc`, `.usdz` | Universal Scene Description models and packages |
-| `.wrl`, `.vrml`, `.vtk`, `.vtp` | VRML and VTK PolyData models |
+| `.wrl`, `.vrml`, `.wrz`, `.vtk`, `.vtp` | VRML/VRML97 (including gzip-compressed WRZ) and VTK PolyData models |
 | `.pcd`, `.xyz` | Point-cloud data |
 | `.vox` | MagicaVoxel models |
 | `.json` | Three.js Object/Scene JSON |

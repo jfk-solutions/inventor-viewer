@@ -339,6 +339,11 @@ function pointsFromGeometry(runtime: CadRuntime, geometry: any, name: string) {
   return points;
 }
 
+async function decompressGzipText(file: File) {
+  const decompressed = file.stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Response(decompressed).text();
+}
+
 async function loadThreeModel(runtime: CadRuntime, file: File, files: File[]): Promise<LoadedThreeModel> {
   const { THREE } = runtime;
   const path = filePath(file).replace(/\\/g, "/");
@@ -389,6 +394,9 @@ async function loadThreeModel(runtime: CadRuntime, file: File, files: File[]): P
       model = await new runtime.TDSLoader(manager).loadAsync(path);
     } else if (format === "wrl" || format === "vrml") {
       model = await new runtime.VRMLLoader(manager).loadAsync(path);
+    } else if (format === "wrz") {
+      const basePath = path.includes("/") ? path.slice(0, path.lastIndexOf("/") + 1) : "";
+      model = new runtime.VRMLLoader(manager).parse(await decompressGzipText(file), basePath);
     } else if (format === "vtk" || format === "vtp") {
       model = meshFromGeometry(runtime, await new runtime.VTKLoader(manager).loadAsync(path), file.name);
     } else if (format === "pcd") {

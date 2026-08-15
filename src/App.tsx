@@ -115,6 +115,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
             <div><strong>AutoCAD</strong><span>.dwg and ASCII or binary .dxf drawings</span></div>
             <div><strong>Packaged projects</strong><span>.zip workspaces and .faf Factory Assets with linked files</span></div>
             <div><strong>Three.js models</strong><span>.glb, .gltf, .obj, .stl, .ply, .fbx, .3mf, .dae, .usdz and more</span></div>
+            <div><strong>VRML worlds</strong><span>.wrl and .vrml models, plus gzip-compressed .wrz files</span></div>
             <div><strong>Demo3D simulation</strong><span>.demo3d projects and render-ready .raw3d scenes</span></div>
           </div>
         )}

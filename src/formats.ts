@@ -4,7 +4,7 @@ export const DEMO3D_MODEL_EXTENSIONS = ["demo3d", "raw3d"] as const;
 
 export const THREE_MODEL_EXTENSIONS = [
   "glb", "gltf", "obj", "stl", "ply", "fbx", "3mf", "amf", "dae", "3ds",
-  "wrl", "vrml", "vtk", "vtp", "pcd", "xyz", "vox", "usd", "usda", "usdc",
+  "wrl", "vrml", "wrz", "vtk", "vtp", "pcd", "xyz", "vox", "usd", "usda", "usdc",
   "usdz", "json",
 ] as const;
 
