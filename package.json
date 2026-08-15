@@ -14,10 +14,13 @@
   },
   "dependencies": {
     "@jfk-solutions/demo3d-file-format": "^1.8.0",
+    "fflate": "0.8.3",
     "lucide-react": "^0.468.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "three": "^0.185.0"
+    "rhino3dm": "8.17.0",
+    "three": "^0.185.0",
+    "web-ifc": "0.0.77"
   },
   "devDependencies": {
     "@types/react": "^19.2.0",

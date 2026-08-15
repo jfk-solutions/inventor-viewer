@@ -17,6 +17,7 @@ export type CadRuntime = {
   OBJLoader: any;
   PCDLoader: any;
   PLYLoader: any;
+  Rhino3dmLoader: any;
   STLLoader: any;
   TDSLoader: any;
   TGALoader: any;

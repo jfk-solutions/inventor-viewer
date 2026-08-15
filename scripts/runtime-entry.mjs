@@ -14,6 +14,7 @@ import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { PCDLoader } from "three/examples/jsm/loaders/PCDLoader.js";
 import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
+import { Rhino3dmLoader } from "three/examples/jsm/loaders/3DMLoader.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { TDSLoader } from "three/examples/jsm/loaders/TDSLoader.js";
 import { TGALoader } from "three/examples/jsm/loaders/TGALoader.js";
@@ -46,7 +47,7 @@ export {
   THREE, OrbitControls,
   GLTFExporter, OBJExporter, PLYExporter, STLExporter, USDZExporter,
   AMFLoader, ColladaLoader, DDSLoader, FBXLoader, GLTFLoader, MTLLoader, OBJLoader,
-  PCDLoader, PLYLoader, STLLoader, TDSLoader, TGALoader, ThreeMFLoader, USDLoader,
+  PCDLoader, PLYLoader, Rhino3dmLoader, STLLoader, TDSLoader, TGALoader, ThreeMFLoader, USDLoader,
   VOXLoader, buildVOXMesh, VRMLLoader, VTKLoader, XYZLoader, MeshoptDecoder,
   Inventor, InventorThree, InventorStep, Acad, loadOpenCascade,
 };

@@ -18,6 +18,11 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.dwg` | AutoCAD model space through `@node-projects/acad-ts` |
 | `.dxf` | ASCII and binary DXF; common line, arc, circle, polyline, point and 3D-face entities |
 | `.step`, `.stp` | STEP parts and assemblies, tessellated locally through the lazy-loaded OpenCascade kernel |
+| `.iges`, `.igs`, `.brep`, `.brp` | IGES exchange models and OpenCascade BREP geometry through the same lazy OpenCascade kernel |
+| `.3dm` | Rhino models through Three.js and the format-triggered `rhino3dm` worker/WASM runtime |
+| `.fcstd` | Visible FreeCAD Part and PartDesign BREP objects; archive decoding and OpenCascade are loaded only for FCStd files |
+| `.ifc` | IFC building geometry and element metadata through format-triggered `web-ifc` and its local WASM runtime |
+| `.bim`, `.off` | DotBIM scenes and OFF polygon meshes through lightweight built-in parsers |
 | `.zip` | Packaged Inventor workspaces, including an IAM and all linked documents, textures and project files |
 | `.faf` | Inventor Factory Asset packages |
 | `.glb`, `.gltf` | glTF 2.0 scenes, materials, textures and animations; local sidecar resources can be selected together |
@@ -92,7 +97,7 @@ npm run bundle:vendor
 npm run build
 ```
 
-`scripts/runtime-entry.mjs` combines Inventor parsing, the Three.js adapter, `acad-ts`, Three.js, OrbitControls, model loaders and exporters. `scripts/build-vendor.mjs` creates the minified runtime, copies the minified BZip2/WASM decoder required by serialized Inventor graphics, and updates `src/runtime-version.ts` with its content hash. Commit the generated runtime, decoder directory, and version file whenever either local library changes; the hash prevents browsers and GitHub Pages from reusing an older CAD runtime.
+`scripts/runtime-entry.mjs` combines Inventor parsing, the Three.js adapter, `acad-ts`, Three.js, OrbitControls, model loaders and exporters. `scripts/build-vendor.mjs` creates the minified runtime, copies the BZip2, OpenCascade, Rhino and IFC browser assets, and updates `src/runtime-version.ts` with its content hash. OpenCascade, Rhino, IFC and FCStd archive code remain format-triggered rather than entering the initial application payload. Commit the generated runtime, decoder directories and version file whenever their source packages change; the hash prevents browsers and GitHub Pages from reusing an older CAD runtime.
 
 ## GitHub Pages
 
@@ -115,6 +120,8 @@ In the GitHub repository, open **Settings → Pages** and set **Source** to **Gi
 - [`inventor-file-format`](https://github.com/JFK-Solutions/inventor-file-format) for Inventor parsing, workspaces, ZIP providers and Three.js scene conversion
 - [`acad-ts`](https://github.com/node-projects/acad-ts) for DWG/DXF parsing
 - [`demo3d-file-format`](https://github.com/JFK-Solutions/demo3d-file-format) for lazily loaded Demo3D/RAW3D parsing and Three.js scene conversion
+- OpenCascade.js for lazily tessellated STEP, IGES, BREP and embedded FreeCAD shapes
+- `rhino3dm`, `web-ifc` and `fflate` as isolated format-triggered runtimes for 3DM, IFC and FCStd respectively
 
 See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for bundled dependency licenses.
 

@@ -38,7 +38,9 @@ function FormatPills() {
     <span><Boxes size={18} /> Assembly <b>IAM</b></span>
     <span><FileCode2 size={18} /> Drawing <b>IDW</b></span>
     <span><Layers3 size={18} /> AutoCAD <b>DWG / DXF</b></span>
-    <span><Box size={18} /> CAD exchange <b>STEP / STP</b></span>
+    <span><Box size={18} /> CAD exchange <b>STEP / IGES / BREP</b></span>
+    <span><Box size={18} /> CAD models <b>3DM / FCSTD</b></span>
+    <span><Boxes size={18} /> BIM <b>IFC / BIM</b></span>
     <span><FileArchive size={18} /> Workspace <b>ZIP</b></span>
     <span><Box size={18} /> 3D models <b>GLB / STL</b></span>
     <span><Box size={18} /> Simulation <b>DEMO3D / RAW3D</b></span>
@@ -72,7 +74,7 @@ export function DropZone({ onFiles, compact = false }: DropZoneProps) {
         {!compact && <span>or click to browse your computer</span>}
       </div>
       {!compact && <button type="button" className="choose-button">Choose files <ArrowRight size={16} /></button>}
-      {!compact && <div className="drop-formats">IPT · IAM · DWG · STEP · DEMO3D · RAW3D · GLB · STL</div>}
+      {!compact && <div className="drop-formats">IPT · IAM · DWG · STEP · IGES · 3DM · IFC · FCSTD · GLB · STL</div>}
     </div>
   );
 }
@@ -96,7 +98,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
         <div className="hero-copy">
           <div className="eyebrow"><span /> Browser-based CAD viewing by JFK Solutions</div>
           <h1>Your CAD data.<br /><em>Right here.</em></h1>
-          <p>Open Inventor, AutoCAD, STEP and Demo3D files — plus common Three.js 3D formats — directly in your browser. No installation. No upload.</p>
+          <p>Open Inventor, AutoCAD, STEP, Rhino, FreeCAD and IFC files — plus common 3D formats — directly in your browser. No installation. No upload.</p>
           <div className="trust-row">
             <span><ShieldCheck size={17} /> Processed locally</span>
             <span><Zap size={17} /> Opens in seconds</span>
@@ -126,9 +128,11 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
             <div><strong>Inventor 3D</strong><span>.ipt parts, .iam assemblies, .ipn presentations</span></div>
             <div><strong>Inventor 2D</strong><span>.idw drawings and Inventor .dwg references</span></div>
             <div><strong>AutoCAD</strong><span>.dwg and ASCII or binary .dxf drawings</span></div>
-            <div><strong>CAD exchange</strong><span>.step and .stp parts and assemblies with names and colors</span></div>
+            <div><strong>CAD exchange</strong><span>.step, .stp, .iges, .igs, .brep and .brp geometry with names and colors</span></div>
+            <div><strong>Rhino and FreeCAD</strong><span>.3dm models and visible Part/PartDesign geometry from .fcstd documents</span></div>
+            <div><strong>Building models</strong><span>.ifc building geometry and .bim DotBIM scenes with element metadata</span></div>
             <div><strong>Packaged projects</strong><span>.zip workspaces and .faf Factory Assets with linked files</span></div>
-            <div><strong>Three.js models</strong><span>.glb, .gltf, .obj, .stl, .ply, .fbx, .3mf, .dae, .usdz and more</span></div>
+            <div><strong>Mesh and scene formats</strong><span>.glb, .gltf, .obj, .off, .stl, .ply, .fbx, .3mf, .dae, .usdz and more</span></div>
             <div><strong>VRML worlds</strong><span>.wrl and .vrml models, plus gzip-compressed .wrz files</span></div>
             <div><strong>Demo3D simulation</strong><span>.demo3d projects and render-ready .raw3d scenes</span></div>
           </div>

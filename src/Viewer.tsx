@@ -29,7 +29,7 @@ import { BrandIcon } from "./Brand";
 import { disposeDemo3DModel, loadDemo3DFile } from "./demo3d";
 import { loadCadRuntime, type CadRuntime } from "./runtime";
 import { ACCEPTED_FILE_TYPES, fileExtension, isDirectModelFile } from "./formats";
-import { loadStepModel } from "./step";
+import { loadOcctModel } from "./step";
 
 type ViewerProps = {
   files: File[];
@@ -82,7 +82,9 @@ function kindFor(path: string) {
     wrl: "VRML model", vrml: "VRML model", vtk: "VTK model", vtp: "VTK PolyData",
     pcd: "Point cloud", xyz: "XYZ point cloud", vox: "MagicaVoxel model", usd: "USD model",
     usda: "USD ASCII model", usdc: "USD binary model", usdz: "USDZ model", json: "Three.js scene",
-    step: "STEP model", stp: "STEP model",
+    step: "STEP model", stp: "STEP model", iges: "IGES model", igs: "IGES model",
+    brep: "OpenCascade BREP", brp: "OpenCascade BREP", "3dm": "Rhino 3DM model",
+    bim: "DotBIM model", fcstd: "FreeCAD document", ifc: "IFC building model", off: "OFF mesh",
     demo3d: "Demo3D project", raw3d: "RAW3D scene",
   } as Record<string, string>)[extension(path)] ?? "3D model";
 }
@@ -373,10 +375,28 @@ async function loadThreeModel(
   let animations: any[] = [];
 
   try {
-    if (format === "step" || format === "stp") {
-      const result = await loadStepModel(runtime, file, manager, onProgress);
+    if (["step", "stp", "iges", "igs", "brep", "brp"].includes(format)) {
+      const result = await loadOcctModel(runtime, file, manager, onProgress);
       model = result.model;
       animations = result.animations;
+    } else if (format === "3dm") {
+      onProgress?.("Loading Rhino 3DM engine…", 44);
+      const loader = new runtime.Rhino3dmLoader(manager);
+      loader.setLibraryPath(new URL(`${import.meta.env.BASE_URL}vendor/rhino3dm/`, window.location.href).href);
+      loader.setWorkerLimit(Math.max(1, Math.min(4, navigator.hardwareConcurrency || 2)));
+      try { model = await loader.loadAsync(path); } finally { loader.dispose(); }
+    } else if (format === "off") {
+      const { loadOffModel } = await import("./off");
+      model = await loadOffModel(runtime, file);
+    } else if (format === "bim") {
+      const { loadBimModel } = await import("./bim");
+      model = await loadBimModel(runtime, file);
+    } else if (format === "fcstd") {
+      const { loadFcstdModel } = await import("./fcstd");
+      model = await loadFcstdModel(runtime, file, manager, onProgress);
+    } else if (format === "ifc") {
+      const { loadIfcModel } = await import("./ifc");
+      model = await loadIfcModel(runtime, file, onProgress);
     } else if (format === "demo3d" || format === "raw3d") {
       model = await loadDemo3DFile(file, THREE);
     } else if (format === "glb" || format === "gltf") {

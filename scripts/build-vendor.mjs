@@ -12,6 +12,12 @@ const bzipSource = path.join(root, "..", "inventor-file-format", "node_modules",
 const bzipTarget = path.join(root, "public", "vendor", "bzip2-wasm", "bzip2-1.0.8");
 const openCascadePackage = path.join(root, "..", "inventor-file-format", "node_modules", "opencascade.js");
 const openCascadeTarget = path.join(root, "public", "vendor", "opencascade");
+const rhinoPackage = path.join(root, "node_modules", "rhino3dm");
+const rhinoTarget = path.join(root, "public", "vendor", "rhino3dm");
+const webIfcPackage = path.join(root, "node_modules", "web-ifc");
+const webIfcTarget = path.join(root, "public", "vendor", "web-ifc");
+const fflatePackage = path.join(root, "node_modules", "fflate");
+const fflateTarget = path.join(root, "public", "vendor", "fflate");
 
 await mkdir(path.dirname(outfile), { recursive: true });
 await build({
@@ -48,6 +54,22 @@ await mkdir(openCascadeTarget, { recursive: true });
 await copyFile(path.join(openCascadePackage, "dist", "opencascade.full.js"), path.join(openCascadeTarget, "opencascade.full.js"));
 await copyFile(path.join(openCascadePackage, "dist", "opencascade.full.wasm"), path.join(openCascadeTarget, "opencascade.full.wasm"));
 await copyFile(path.join(openCascadePackage, "LICENSE"), path.join(openCascadeTarget, "LICENSE"));
+
+// The Three.js 3DM loader fetches these only after a Rhino file is selected.
+await mkdir(rhinoTarget, { recursive: true });
+await copyFile(path.join(rhinoPackage, "rhino3dm.js"), path.join(rhinoTarget, "rhino3dm.js"));
+await copyFile(path.join(rhinoPackage, "rhino3dm.wasm"), path.join(rhinoTarget, "rhino3dm.wasm"));
+// The npm tarball omits the repository license, so its exact versioned MIT
+// text is committed at public/vendor/rhino3dm/LICENSE.
+
+// web-ifc itself is emitted as a Vite lazy chunk. Its single-threaded WASM
+// kernel remains a separately loaded, replaceable file next to its license.
+await mkdir(webIfcTarget, { recursive: true });
+await copyFile(path.join(webIfcPackage, "web-ifc.wasm"), path.join(webIfcTarget, "web-ifc.wasm"));
+await copyFile(path.join(webIfcPackage, "LICENSE.md"), path.join(webIfcTarget, "LICENSE.md"));
+
+await mkdir(fflateTarget, { recursive: true });
+await copyFile(path.join(fflatePackage, "LICENSE"), path.join(fflateTarget, "LICENSE"));
 
 // Generated template literals can inherit trailing spaces from upstream shader
 // sources. Keep the committed browser bundle clean and reproducible.
