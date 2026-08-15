@@ -1,4 +1,4 @@
-import type { CadRuntime } from "./runtime";
+import type { CadRuntime } from "../runtime";
 
 let ifcModulePromise: Promise<any> | undefined;
 let ifcApiPromise: Promise<any> | undefined;

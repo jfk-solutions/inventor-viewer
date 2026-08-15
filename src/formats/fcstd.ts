@@ -1,4 +1,4 @@
-import type { CadRuntime } from "./runtime";
+import type { CadRuntime } from "../runtime";
 import { loadOcctModel } from "./step";
 
 type FreeCadObject = {

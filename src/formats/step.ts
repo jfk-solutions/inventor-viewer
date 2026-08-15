@@ -1,4 +1,4 @@
-import type { CadRuntime } from "./runtime";
+import type { CadRuntime } from "../runtime";
 
 type OcctLoadProgress = (status: string, progress: number) => void;
 type OcctFormat = "step" | "iges" | "brep";

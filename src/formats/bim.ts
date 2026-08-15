@@ -1,4 +1,4 @@
-import type { CadRuntime } from "./runtime";
+import type { CadRuntime } from "../runtime";
 
 type DotBimColor = { r?: number; g?: number; b?: number; a?: number };
 type DotBimMesh = { mesh_id: number | string; coordinates: number[]; indices: number[] };

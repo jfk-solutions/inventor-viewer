@@ -1,4 +1,4 @@
-import type { CadRuntime } from "./runtime";
+import type { CadRuntime } from "../runtime";
 
 type OffColor = [number, number, number];
 type OffVertex = { position: [number, number, number]; color?: OffColor };

@@ -26,10 +26,10 @@ import {
   X,
 } from "lucide-react";
 import { BrandIcon } from "./Brand";
-import { disposeDemo3DModel, loadDemo3DFile } from "./demo3d";
+import { disposeDemo3DModel, loadDemo3DFile } from "./formats/demo3d";
 import { loadCadRuntime, type CadRuntime } from "./runtime";
 import { ACCEPTED_FILE_TYPES, fileExtension, isDirectModelFile } from "./formats";
-import { loadOcctModel } from "./step";
+import { loadOcctModel } from "./formats/step";
 
 type ViewerProps = {
   files: File[];
@@ -386,16 +386,16 @@ async function loadThreeModel(
       loader.setWorkerLimit(Math.max(1, Math.min(4, navigator.hardwareConcurrency || 2)));
       try { model = await loader.loadAsync(path); } finally { loader.dispose(); }
     } else if (format === "off") {
-      const { loadOffModel } = await import("./off");
+      const { loadOffModel } = await import("./formats/off");
       model = await loadOffModel(runtime, file);
     } else if (format === "bim") {
-      const { loadBimModel } = await import("./bim");
+      const { loadBimModel } = await import("./formats/bim");
       model = await loadBimModel(runtime, file);
     } else if (format === "fcstd") {
-      const { loadFcstdModel } = await import("./fcstd");
+      const { loadFcstdModel } = await import("./formats/fcstd");
       model = await loadFcstdModel(runtime, file, manager, onProgress);
     } else if (format === "ifc") {
-      const { loadIfcModel } = await import("./ifc");
+      const { loadIfcModel } = await import("./formats/ifc");
       model = await loadIfcModel(runtime, file, onProgress);
     } else if (format === "demo3d" || format === "raw3d") {
       model = await loadDemo3DFile(file, THREE);
