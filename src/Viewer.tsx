@@ -806,6 +806,13 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
               ? child.material.some((material: any) => material?.visible !== false)
               : child.material?.visible !== false;
             if (!geometry?.attributes?.position?.count || !materialVisible) return;
+            // VRMLLoader represents Background nodes as radius-10,000 sky/ground
+            // spheres beneath a renderOrder=-Infinity group. They are scenery,
+            // not model geometry, and including them makes the camera frame the
+            // background sphere instead of the actual model.
+            for (let ancestor = child; ancestor && ancestor !== object; ancestor = ancestor.parent) {
+              if (ancestor.renderOrder === -Infinity) return;
+            }
             geometry.computeBoundingBox?.();
             if (!geometry.boundingBox?.isEmpty()) {
               objectBounds.copy(geometry.boundingBox).applyMatrix4(child.matrixWorld);
