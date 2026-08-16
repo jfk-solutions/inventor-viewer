@@ -38,6 +38,7 @@ export type CadRuntime = {
   InventorThree: any;
   InventorStep: any;
   Catia: any;
+  CatiaV4: any;
   Fusion: any;
   SolidWorks: any;
   SolidWorksThree: any;

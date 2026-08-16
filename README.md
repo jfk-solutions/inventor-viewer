@@ -1,6 +1,6 @@
 # Native CAD Viewer
 
-A modern, static 3D viewer by JFK Solutions for Autodesk Inventor, Fusion, CATIA V5, SolidWorks, AutoCAD, Demo3D and common Three.js model formats. Files are parsed and rendered entirely in the browser: there is no upload service, no account and no Vault connection.
+A modern, static 3D viewer by JFK Solutions for Autodesk Inventor, Fusion, CATIA V4/V5, SolidWorks, AutoCAD, Demo3D and common Three.js model formats. Files are parsed and rendered entirely in the browser: there is no upload service, no account and no Vault connection.
 
 The repository is designed for GitHub Pages. The complete minimized CAD runtime is checked in at `public/vendor/cad-viewer-runtime.min.js`, so a clean Pages build does not need unpublished packages or the sibling development repositories.
 
@@ -17,6 +17,7 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.ide` | Inventor iFeature documents |
 | `.f3d` | Fusion design archives with validated native ShapeManager face tessellation and model metadata |
 | `.f3z` | Fusion distributed-design archives with discoverable nested F3D documents |
+| `.model` | CATIA V4 MODEL headers and metadata; renderer geometry comes from a same-name AP214 `.stp` or `.step` companion selected alongside it or contained in the same ZIP |
 | `.CATPart` | CATIA V5 parts with decoded native geometry carriers, hierarchy and metadata |
 | `.CATProduct` | CATIA V5 products with recursively resolved CATPart/CATShape/CGR references and an explicitly diagnosed fallback layout where occurrence transforms are unavailable |
 | `.CATShape`, `.cgr` | CATIA V5 shape and graphical-representation documents |
@@ -54,6 +55,8 @@ For assemblies, package the IAM, CATProduct or SLDASM and all referenced documen
 Fusion F3D and F3Z files are decoded by the browser-first `fusion-file-format` reader. The viewer renders validated planar, cylindrical, conical, toroidal and trimmed NURBS faces from native ShapeManager payloads. Unsupported faces are reported in diagnostics and are not replaced with invented geometry; F3Z and generic ZIP snapshots expose each nested F3D document as a selectable root.
 
 CATIA V5 geometry support follows the current `catia-file-format` decoder. Native point and segment carriers are rendered in 3D; surfaces may use a diagnosed convex-hull approximation while exact concave trims and analytic/NURBS tessellation remain under development. Embedded preview images are metadata only and are never substituted for decoded 3D geometry.
+
+CATIA V4 support is intentionally isolated from V5 parsing. The viewer validates the native `.model` header, exposes its name/version metadata, and renders faces and edges from a same-name AP214 STEP companion. Diagnostics preserve that provenance: companion STEP geometry is never described as decoded native V4 B-Rep data, and archive preview images are never used as 3D geometry.
 
 `acad-ts` reads DXF versions AC1009 through AC1032 and DWG versions AC1014 through AC1032. Visual coverage depends on the entity types contained in a drawing. Inventor feature-level coverage is evolving; serialized display meshes and wireframe fallbacks provide the broadest viewing support.
 
@@ -141,7 +144,7 @@ In the GitHub repository, open **Settings → Pages** and set **Source** to **Gi
 - Three.js for WebGL rendering and camera interaction
 - [`inventor-file-format`](https://github.com/JFK-Solutions/inventor-file-format) for Inventor parsing, workspaces, ZIP providers and Three.js scene conversion
 - `fusion-file-format` for F3D/F3Z parsing, native ShapeManager tessellation and snapshot discovery
-- `catia-file-format` for CATIA V5 parsing, ZIP/multi-file workspaces, renderer-neutral scene creation and local Three.js conversion
+- `catia-file-format` for isolated CATIA V4 MODEL/STEP-companion support plus CATIA V5 parsing, ZIP/multi-file workspaces, renderer-neutral scene creation and local Three.js conversion
 - `solidworks-file-format` for browser-native SolidWorks parsing, ZIP workspaces, saved tessellation and Three.js scene conversion
 - [`acad-ts`](https://github.com/node-projects/acad-ts) for DWG/DXF parsing
 - [`demo3d-file-format`](https://github.com/JFK-Solutions/demo3d-file-format) for lazily loaded Demo3D/RAW3D parsing and Three.js scene conversion

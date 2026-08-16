@@ -50,6 +50,7 @@ Links in **Open-source information or library** are implementation leads, not de
 | `.json` | Three.js Object/Scene JSON | Three.js | Yes | Open | Current [Three.js ObjectLoader](https://threejs.org/docs/#api/en/loaders/ObjectLoader) |
 | `.ldr`, `.mpd` | LDraw model / multipart document | LDraw LEGO CAD ecosystem | Yes | Open | Current [Three.js LDrawLoader](https://github.com/mrdoob/three.js/blob/dev/examples/jsm/loaders/LDrawLoader.js); packed MPD files or locally selected `.dat` parts are supported |
 | `.md2` | Quake II model | id Software game tooling | Yes | Open | Current [Three.js MD2Loader](https://github.com/mrdoob/three.js/blob/dev/examples/jsm/loaders/MD2Loader.js) |
+| `.model` | CATIA V4 MODEL | Dassault Systèmes CATIA V4 | Yes | Closed | Current isolated MIT-licensed `catia-file-format/v4` reader validates native MODEL headers and uses a same-name AP214 `.stp`/`.step` companion for provisional renderer geometry; native V4 B-Rep records are not yet decoded |
 | `.obj` | Wavefront OBJ | Autodesk Fusion, Onshape and most 3D/DCC tools | Yes | Open | Current Three.js loader; [Assimp](https://github.com/assimp/assimp) |
 | `.off` | Object File Format | Geomview and geometry-processing tools | Yes | Open | Current built-in text mesh parser; [Assimp](https://github.com/assimp/assimp/blob/master/doc/Fileformats.md) also provides an importer |
 | `.pcd` | Point Cloud Data | Point Cloud Library (PCL) | Yes | Open | Current Three.js loader; [PCL](https://github.com/PointCloudLibrary/pcl) |

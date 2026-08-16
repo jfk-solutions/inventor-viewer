@@ -38,7 +38,7 @@ function FormatPills() {
     <span><Boxes size={18} /> Assembly <b>IAM</b></span>
     <span><FileCode2 size={18} /> Drawing <b>IDW</b></span>
     <span><Box size={18} /> Fusion <b>F3D / F3Z</b></span>
-    <span><Boxes size={18} /> CATIA <b>CATPART / CATPRODUCT</b></span>
+    <span><Boxes size={18} /> CATIA <b>MODEL / CATPART / CATPRODUCT</b></span>
     <span><Boxes size={18} /> SolidWorks <b>SLDPRT / SLDASM</b></span>
     <span><Layers3 size={18} /> AutoCAD <b>DWG / DXF</b></span>
     <span><Box size={18} /> CAD exchange <b>STEP / IGES / BREP</b></span>
@@ -77,7 +77,7 @@ export function DropZone({ onFiles, compact = false }: DropZoneProps) {
         {!compact && <span>or click to browse your computer</span>}
       </div>
       {!compact && <button type="button" className="choose-button">Choose files <ArrowRight size={16} /></button>}
-      {!compact && <div className="drop-formats">IPT · IAM · F3D · F3Z · CATPART · CATPRODUCT · SLDPRT · SLDASM · DWG · STEP · IFC · GLB</div>}
+      {!compact && <div className="drop-formats">IPT · IAM · F3D · CATIA MODEL · CATPART · CATPRODUCT · SLDPRT · SLDASM · DWG · STEP · IFC</div>}
     </div>
   );
 }
@@ -131,6 +131,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
             <div><strong>Inventor 3D</strong><span>.ipt parts, .iam assemblies, .ipn presentations</span></div>
             <div><strong>Inventor 2D</strong><span>.idw drawings and Inventor .dwg references</span></div>
             <div><strong>Autodesk Fusion</strong><span>.f3d designs and .f3z distributed-design archives with native ShapeManager geometry</span></div>
+            <div><strong>CATIA V4</strong><span>.model documents with renderer geometry from a same-name AP214 .stp or .step companion, selected together or packaged in ZIP</span></div>
             <div><strong>CATIA V5</strong><span>.CATPart parts, .CATProduct assemblies, .CATShape geometry and .cgr representations, individually or in ZIP workspaces</span></div>
             <div><strong>SolidWorks</strong><span>.sldprt parts, .sldasm assemblies and .slddrw drawings, individually or in ZIP workspaces</span></div>
             <div><strong>AutoCAD</strong><span>.dwg and ASCII or binary .dxf drawings</span></div>

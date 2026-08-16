@@ -54,6 +54,7 @@ function nodeMetadata(node: CatiaNode) {
 
 export function createCatiaThreeGroup(runtime: CadRuntime, scene: CatiaScene, document: any) {
   const { THREE } = runtime;
+  const isV4 = document.format === "catia-v4-model";
   const materials = scene.materials.map((source) => {
     const material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(source.color[0], source.color[1], source.color[2]),
@@ -126,10 +127,11 @@ export function createCatiaThreeGroup(runtime: CadRuntime, scene: CatiaScene, do
   model.name = document.name;
   model.userData.catiaDocument = true;
   model.userData.catia = {
-    kind: document.kind === "product" ? "CATIA assembly" : `CATIA ${document.kind}`,
+    kind: isV4 ? "CATIA V4 MODEL" : document.kind === "product" ? "CATIA assembly" : `CATIA ${document.kind}`,
     name: document.name,
     sourcePath: document.path,
-    saveVersion: document.saveVersion?.displayName,
+    saveVersion: isV4 ? document.versionText ?? "CATIA V4" : document.saveVersion?.displayName,
+    nativeName: document.nativeName,
     release: document.saveVersion?.release,
     servicePack: document.saveVersion?.servicePack,
     hotFix: document.saveVersion?.hotFix,

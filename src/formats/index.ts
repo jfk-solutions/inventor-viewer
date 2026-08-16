@@ -2,7 +2,7 @@ export const CAD_MODEL_EXTENSIONS = ["ipt", "iam", "idw", "ipn", "ide", "dwg", "
 
 export const SOLIDWORKS_MODEL_EXTENSIONS = ["sldprt", "sldasm", "slddrw"] as const;
 
-export const CATIA_MODEL_EXTENSIONS = ["catpart", "catproduct", "catshape", "cgr"] as const;
+export const CATIA_MODEL_EXTENSIONS = ["catpart", "catproduct", "catshape", "cgr", "model"] as const;
 
 export const FUSION_MODEL_EXTENSIONS = ["f3d", "f3z"] as const;
 

@@ -78,7 +78,7 @@ function extension(path: string) {
 function kindFor(path: string) {
   return ({
     iam: "Assembly", ipt: "Part", idw: "Drawing", ipn: "Presentation", ide: "iFeature",
-    catproduct: "CATIA assembly", catpart: "CATIA part", catshape: "CATIA shape", cgr: "CATIA graphical representation",
+    catproduct: "CATIA assembly", catpart: "CATIA part", catshape: "CATIA shape", cgr: "CATIA graphical representation", model: "CATIA V4 MODEL",
     f3d: "Fusion design", f3z: "Fusion distributed design",
     sldasm: "SolidWorks assembly", sldprt: "SolidWorks part", slddrw: "SolidWorks drawing",
     dwg: "AutoCAD drawing", dxf: "DXF drawing", glb: "Binary glTF", gltf: "glTF model",
@@ -674,7 +674,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         setProgress(10);
         const runtime = await loadCadRuntime();
         if (disposed) return;
-        const { THREE, OrbitControls, Inventor, InventorThree, Catia, Fusion, SolidWorks, SolidWorksThree } = runtime;
+        const { THREE, OrbitControls, Inventor, InventorThree, Catia, CatiaV4, Fusion, SolidWorks, SolidWorksThree } = runtime;
         const canvas = canvasRef.current!;
         const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: "high-performance" });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -919,6 +919,13 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           finally { await source.close?.(); }
         };
 
+        const readSharedZipEntryPrefix = async (path: string, maximumBytes: number) => {
+          const source = await sharedZipProvider?.open(path);
+          if (!source) throw new Error(`Could not read ${path} from the packaged workspace.`);
+          try { return await source.read(0, Math.min(source.size, maximumBytes)); }
+          finally { await source.close?.(); }
+        };
+
         const solidWorksFiles = files.filter((file) => /\.(?:sldprt|sldasm|slddrw)$/i.test(file.name));
         let solidWorksWorkspace: any;
         if (solidWorksFiles.length) {
@@ -1032,6 +1039,64 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
               throw new Error(detail ?? `No supported 3D geometry was decoded from ${path}. For CATProduct assemblies, select or ZIP the referenced CATPart files too.`);
             }
             setStatus("Preparing CATIA materials and geometry…");
+            setProgress(84);
+            const model = createCatiaThreeGroup(runtime, renderScene, document);
+            if (!isCurrent()) {
+              disposeCatiaThreeGroup(model);
+              return;
+            }
+            presentModel(model);
+          };
+        }
+
+        const catiaV4Files = files.filter((file) => /\.model$/i.test(file.name));
+        let catiaV4Workspace: any;
+        if (catiaV4Files.length) {
+          setStatus("Reading CATIA V4 workspace…");
+          setProgress(22);
+          catiaV4Workspace = await CatiaV4.openCatiaV4Workspace(files);
+        } else if (sharedZipProvider && sharedZipInventory.some((item: any) => /\.model$/i.test(item.path))) {
+          setStatus("Reading CATIA V4 workspace…");
+          setProgress(36);
+          catiaV4Workspace = await CatiaV4.openCatiaV4Workspace({
+            list: async () => sharedZipInventory,
+            read: readSharedZipEntry,
+            readPrefix: readSharedZipEntryPrefix,
+          });
+        }
+
+        let catiaV4RootOptions: RootOption[] = [];
+        let openCatiaV4Root: ((path: string) => Promise<void>) | undefined;
+        if (catiaV4Workspace) {
+          setStatus("Finding CATIA V4 MODEL documents…");
+          setProgress(40);
+          catiaV4RootOptions = catiaV4Workspace.rootPaths.map((path: string) => ({ path, label: path, kind: kindFor(path) }));
+
+          openCatiaV4Root = async (path: string) => {
+            if (disposed) return;
+            const generation = ++rootGeneration;
+            rootController?.abort();
+            const controller = new AbortController();
+            rootController = controller;
+            const isCurrent = () => !disposed && !controller.signal.aborted && generation === rootGeneration;
+            setActiveRoot(path);
+            setTree(null);
+            clearSelection();
+            setError(null);
+            setStatus(`Parsing ${path}…`);
+            setProgress(58);
+            releaseModel();
+            const document = await catiaV4Workspace.openDocument(path);
+            if (!isCurrent()) return;
+            setStatus("Decoding CATIA V4 STEP companion geometry…");
+            setProgress(70);
+            const renderScene = await CatiaV4.createCatiaV4RenderScene(catiaV4Workspace, document);
+            if (!isCurrent()) return;
+            if (!renderScene.meshes.length && !renderScene.lineSets.length) {
+              const detail = renderScene.diagnostics.find((item: any) => item.severity === "warning")?.message;
+              throw new Error(detail ?? `No supported 3D geometry was decoded from ${path}. Select or ZIP its same-name .stp or .step companion too.`);
+            }
+            setStatus("Preparing CATIA V4 geometry…");
             setProgress(84);
             const model = createCatiaThreeGroup(runtime, renderScene, document);
             if (!isCurrent()) {
@@ -1333,7 +1398,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           }
         };
 
-        const rootOptions = [...inventorRootOptions, ...fusionRootOptions, ...solidWorksRootOptions, ...catiaRootOptions, ...directRootOptions, ...archiveDirectRootOptions];
+        const rootOptions = [...inventorRootOptions, ...fusionRootOptions, ...solidWorksRootOptions, ...catiaRootOptions, ...catiaV4RootOptions, ...directRootOptions, ...archiveDirectRootOptions];
         if (!rootOptions.length) throw new Error("No supported CAD document was found in this selection.");
         setRoots(rootOptions);
         const openWorkspaceRoot = async (path: string) => {
@@ -1344,6 +1409,10 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           if (/\.(?:catpart|catproduct|catshape|cgr)$/i.test(path)) {
             if (!openCatiaRoot) throw new Error(`The CATIA workspace for ${path} is unavailable.`);
             return openCatiaRoot(path);
+          }
+          if (/\.model$/i.test(path)) {
+            if (!openCatiaV4Root) throw new Error(`The CATIA V4 workspace for ${path} is unavailable.`);
+            return openCatiaV4Root(path);
           }
           if (/\.f3d$/i.test(path) || fusionRootOpeners.has(path.toLocaleLowerCase())) {
             if (!openFusionRoot) throw new Error(`The Fusion workspace for ${path} is unavailable.`);
