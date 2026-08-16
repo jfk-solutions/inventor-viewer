@@ -4,7 +4,7 @@ This matrix describes the model files that Native CAD Viewer can open directly i
 
 The unsupported section is a practical list of common CAD, BIM, DCC, mesh, animation and point-cloud formats; it is not intended to enumerate every 3D format ever created. An unsupported file may still be usable after conversion to a supported format such as glTF/GLB, STEP, OBJ or STL.
 
-For Siemens files, **NX** and **SIMATIC** are separate product families. NX Mechatronics Concept Designer (NX MCD) can integrate with SIMATIC and SIMIT, but its actual 3D parts and assemblies are NX `.prt` files. SIMATIC TIA Portal `.zap*` and SIMIT `.simarc` files are automation/simulation project archives, not standalone 3D models; they are listed for completeness.
+For Siemens files, **NX** and **SIMATIC** are separate product families. NX Mechatronics Concept Designer (NX MCD) can integrate with SIMATIC and SIMIT, but its actual 3D parts and assemblies are NX `.prt` files. SIMIT `.simarc` files are simulation project archives, not standalone 3D models; they are listed for completeness.
 
 For Autodesk Fusion, `.f3d` is the native design archive and `.f3z` packages distributed designs with external references. Fusion drawing, manufacturing and electronics files are included below, but they are not standalone 3D models. Fusion can export several formats that the viewer already opens, including STEP, 3MF, FBX, OBJ, STL, DWG, DXF and USDZ.
 
@@ -123,7 +123,6 @@ Links in **Open-source information or library** are implementation leads, not de
 | `.x3d`, `.x3db`, `.x3dv` | Extensible 3D | Web3D Consortium ecosystem | No | Open | [Assimp](https://github.com/assimp/assimp) and browser-oriented [X3DOM](https://github.com/x3dom/x3dom) |
 | `.xas`, `.xpr` | Creo Family Table assembly / part accelerator | PTC Creo Parametric | No | Closed | [Official PTC Creo View file list](https://support.ptc.com/help/creo/view/r12.0/en/creo_view/visualization/shared/Opening_Pro_ENGINEER_Files_in_ProductView.html); dependent on Creo family data and no dependable complete open-source reader identified |
 | `.x_b`, `.x_t` | Parasolid binary / text model | Siemens NX, Solid Edge, Onshape, Parasolid and compatible CAD tools | No | Closed | Siemens publishes format information and provides commercial tooling, but no dependable complete open-source reader was identified |
-| `.zap*` | TIA Portal archived project, such as `.zap18` or `.zap19` | Siemens SIMATIC STEP 7 / TIA Portal | No | Closed | Not a standalone 3D model; no dependable complete open-source reader identified |
 
 ## Companion resource files
 
