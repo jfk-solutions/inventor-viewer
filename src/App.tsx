@@ -98,7 +98,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
 
       <section className="hero page-width">
         <div className="hero-copy">
-          <div className="eyebrow"><span /> Browser-based CAD viewing by JFK Solutions</div>
+          <div className="eyebrow"><span /> Native CAD Viewer by JFK Solutions</div>
           <h1>Your CAD data.<br /><em>Right here.</em></h1>
           <p>Open Inventor, CATIA, SolidWorks, AutoCAD, STEP, Rhino, FreeCAD and IFC files — plus common 3D formats — directly in your browser. No installation. No upload.</p>
           <div className="trust-row">

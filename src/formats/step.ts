@@ -3,17 +3,20 @@ import type { CadRuntime } from "../runtime";
 type OcctLoadProgress = (status: string, progress: number) => void;
 type OcctFormat = "step" | "iges" | "brep";
 
-let temporaryFileId = 0;
+type PendingLoad = {
+  resolve: (output: ArrayBuffer) => void;
+  reject: (error: Error) => void;
+  onProgress?: OcctLoadProgress;
+};
 
-function statusDone(oc: any, status: any) {
-  const done = oc.IFSelect_ReturnStatus.IFSelect_RetDone;
-  return status === done || status?.value === done?.value;
-}
+type WorkerResponse =
+  | { type: "progress"; id: number; status: string; progress: number }
+  | { type: "result"; id: number; output: ArrayBuffer; timings: Record<string, number> }
+  | { type: "error"; id: number; message: string; stack?: string };
 
-function own<T>(resources: any[], value: T): T {
-  if (value && typeof (value as any).delete === "function") resources.push(value);
-  return value;
-}
+let nextRequestId = 0;
+let occtWorker: Worker | undefined;
+const pendingLoads = new Map<number, PendingLoad>();
 
 function formatForFile(name: string): OcctFormat {
   const extension = name.split(".").pop()?.toLowerCase();
@@ -23,67 +26,57 @@ function formatForFile(name: string): OcctFormat {
   throw new Error(`OpenCascade does not support .${extension || "unknown"} through this loader.`);
 }
 
-function createDocument(oc: any, resources: any[]) {
-  const storageFormat = own(resources, new oc.TCollection_ExtendedString_1());
-  const document = own(resources, new oc.TDocStd_Document(storageFormat));
-  const handle = own(resources, new oc.Handle_TDocStd_Document_2(document));
-  return { document, handle };
+function rejectPendingLoads(error: Error) {
+  for (const pending of pendingLoads.values()) pending.reject(error);
+  pendingLoads.clear();
 }
 
-function configureReader(reader: any) {
-  reader.SetColorMode?.(true);
-  reader.SetNameMode?.(true);
-  reader.SetLayerMode?.(true);
-  reader.SetPropsMode?.(true);
-  reader.SetMatMode?.(true);
+function getWorker() {
+  if (occtWorker) return occtWorker;
+  const worker = new Worker(new URL("./occt.worker.ts", import.meta.url), { type: "module", name: "cad-viewer-open-cascade" });
+  worker.addEventListener("message", (event: MessageEvent<WorkerResponse>) => {
+    const message = event.data;
+    const pending = pendingLoads.get(message.id);
+    if (!pending) return;
+    if (message.type === "progress") {
+      pending.onProgress?.(message.status, message.progress);
+      return;
+    }
+    pendingLoads.delete(message.id);
+    if (message.type === "result") {
+      console.debug("OpenCascade load timings (ms)", JSON.stringify(message.timings));
+      pending.resolve(message.output);
+    } else {
+      const error = new Error(message.message);
+      if (message.stack) error.stack = message.stack;
+      pending.reject(error);
+    }
+  });
+  worker.addEventListener("error", (event) => {
+    const error = new Error(event.message || "The OpenCascade worker stopped unexpectedly.");
+    rejectPendingLoads(error);
+    worker.terminate();
+    if (occtWorker === worker) occtWorker = undefined;
+  });
+  occtWorker = worker;
+  return worker;
 }
 
-function readDocument(
-  oc: any,
-  format: OcctFormat,
-  inputPath: string,
-  document: any,
-  documentHandle: any,
-  progress: any,
-  resources: any[],
-) {
-  if (format === "step") {
-    oc.STEPControl_Controller.Init();
-    oc.STEPCAFControl_Controller.Init();
-    const reader = own(resources, new oc.STEPCAFControl_Reader_1());
-    configureReader(reader);
-    if (!statusDone(oc, reader.ReadFile(inputPath))) throw new Error("OpenCascade could not read this STEP file.");
-    if (!reader.Transfer_1(documentHandle, progress)) throw new Error("OpenCascade could not transfer the STEP assembly.");
-    return;
+async function convertWithWorker(file: File, format: OcctFormat, onProgress?: OcctLoadProgress) {
+  const id = nextRequestId++;
+  const input = await file.arrayBuffer();
+  const moduleUrl = new URL(`${import.meta.env.BASE_URL}vendor/opencascade/opencascade.full.js`, window.location.href).href;
+  const wasmUrl = new URL(`${import.meta.env.BASE_URL}vendor/opencascade/opencascade.full.wasm`, window.location.href).href;
+  const result = new Promise<ArrayBuffer>((resolve, reject) => {
+    pendingLoads.set(id, { resolve, reject, onProgress });
+  });
+  try {
+    getWorker().postMessage({ type: "load", id, format, input, moduleUrl, wasmUrl }, [input]);
+  } catch (error) {
+    pendingLoads.delete(id);
+    throw error;
   }
-  if (format === "iges") {
-    oc.IGESControl_Controller.Init();
-    const reader = own(resources, new oc.IGESCAFControl_Reader_1());
-    configureReader(reader);
-    if (!statusDone(oc, reader.ReadFile(inputPath))) throw new Error("OpenCascade could not read this IGES file.");
-    if (!reader.Transfer(documentHandle, progress)) throw new Error("OpenCascade could not transfer the IGES model.");
-    return;
-  }
-
-  const shape = own(resources, new oc.TopoDS_Shape());
-  const builder = own(resources, new oc.BRep_Builder());
-  if (!oc.BRepTools.Read_2(shape, inputPath, builder, progress) || shape.IsNull()) {
-    throw new Error("OpenCascade could not read this BREP file.");
-  }
-  const shapeToolHandle = own(resources, oc.XCAFDoc_DocumentTool.ShapeTool(document.Main()));
-  own(resources, shapeToolHandle.get().AddShape(shape, false, true));
-}
-
-function tessellateDocument(oc: any, document: any, resources: any[]) {
-  const shapeToolHandle = own(resources, oc.XCAFDoc_DocumentTool.ShapeTool(document.Main()));
-  const shapeTool = shapeToolHandle.get();
-  const freeShapes = own(resources, new oc.TDF_LabelSequence_1());
-  shapeTool.GetFreeShapes(freeShapes);
-  if (freeShapes.Length() === 0) throw new Error("The CAD file contains no displayable shapes.");
-  for (let index = 1; index <= freeShapes.Length(); index += 1) {
-    const shape = own(resources, oc.XCAFDoc_ShapeTool.GetShape_2(freeShapes.Value(index)));
-    own(resources, new oc.BRepMesh_IncrementalMesh_2(shape, 0.1, true, 0.5, true));
-  }
+  return result;
 }
 
 /** Reads STEP, IGES, or OpenCascade BREP through the separately loaded kernel. */
@@ -95,44 +88,13 @@ export async function loadOcctModel(
 ) {
   const format = formatForFile(file.name);
   const displayName = format === "step" ? "STEP" : format === "iges" ? "IGES" : "BREP";
-  onProgress?.(`Loading ${displayName} engine…`, 42);
-  const oc = await runtime.loadOpenCascade();
-  const resources: any[] = [];
-  const suffix = `${Date.now()}-${temporaryFileId++}`;
-  const inputPath = `/cad-viewer-${suffix}.${format}`;
-  const outputPath = `/cad-viewer-${suffix}.glb`;
-
-  try {
-    onProgress?.(`Reading ${displayName} geometry…`, 52);
-    oc.FS.writeFile(inputPath, new Uint8Array(await file.arrayBuffer()));
-    const { document, handle } = createDocument(oc, resources);
-    const progress = own(resources, new oc.Message_ProgressRange_1());
-    readDocument(oc, format, inputPath, document, handle, progress, resources);
-
-    onProgress?.(`Tessellating ${displayName} surfaces…`, 66);
-    tessellateDocument(oc, document, resources);
-
-    onProgress?.(`Building ${displayName} scene…`, 78);
-    const outputName = own(resources, new oc.TCollection_AsciiString_2(outputPath));
-    const writer = own(resources, new oc.RWGltf_CafWriter(outputName, true));
-    writer.SetToEmbedTexturesInGlb(true);
-    const fileInfo = own(resources, new oc.TColStd_IndexedDataMapOfStringString_1());
-    if (!writer.Perform_2(handle, fileInfo, progress)) throw new Error(`OpenCascade could not tessellate this ${displayName} file.`);
-
-    const wasmBytes = oc.FS.readFile(outputPath, { encoding: "binary" });
-    const glbBytes = new Uint8Array(wasmBytes.byteLength);
-    glbBytes.set(wasmBytes);
-    const loader = new runtime.GLTFLoader(manager);
-    loader.setMeshoptDecoder(runtime.MeshoptDecoder);
-    const result = await loader.parseAsync(glbBytes.buffer, "");
-    return { model: result.scene, animations: result.animations ?? [] };
-  } finally {
-    try { oc.FS.unlink(inputPath); } catch { /* Reading may have failed before creating it. */ }
-    try { oc.FS.unlink(outputPath); } catch { /* Writing may have failed before creating it. */ }
-    for (let index = resources.length - 1; index >= 0; index -= 1) {
-      try { resources[index].delete(); } catch { /* Best-effort cleanup after kernel errors. */ }
-    }
-  }
+  onProgress?.(`Preparing ${displayName} file…`, 42);
+  const glb = await convertWithWorker(file, format, onProgress);
+  onProgress?.(`Preparing ${displayName} display…`, 94);
+  const loader = new runtime.GLTFLoader(manager);
+  loader.setMeshoptDecoder(runtime.MeshoptDecoder);
+  const result = await loader.parseAsync(glb, "");
+  return { model: result.scene, animations: result.animations ?? [] };
 }
 
 export function loadStepModel(runtime: CadRuntime, file: File, manager: any, onProgress?: OcctLoadProgress) {

@@ -1460,7 +1460,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
   return (
     <main className={`viewer-shell ${leftOpen ? "left-open" : ""} ${rightOpen ? "right-open" : ""}`}>
       <header className="viewer-header">
-        <button className="viewer-brand" onClick={onClose} type="button" aria-label="Back to homepage"><BrandIcon className="viewer-brand-logo" /><span className="viewer-brand-copy">CAD Viewer</span></button>
+        <button className="viewer-brand" onClick={onClose} type="button" aria-label="Back to Native CAD Viewer homepage"><BrandIcon className="viewer-brand-logo" /><span className="viewer-brand-copy">Native CAD Viewer</span></button>
         <div className="document-title">
           <FileBox size={17} />
           <button type="button" onClick={() => { if (roots.length > 1) { setRootQuery(""); setRootType("all"); setOpenMenu(!openMenu); } }} disabled={roots.length < 2} aria-haspopup="dialog" aria-expanded={openMenu}>

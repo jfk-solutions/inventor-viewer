@@ -1,6 +1,6 @@
-# JFK Solutions CAD Viewer
+# Native CAD Viewer
 
-A modern, static 3D viewer for Autodesk Inventor, CATIA V5, SolidWorks, AutoCAD, Demo3D and common Three.js model formats. Files are parsed and rendered entirely in the browser: there is no upload service, no account and no Vault connection.
+A modern, static 3D viewer by JFK Solutions for Autodesk Inventor, CATIA V5, SolidWorks, AutoCAD, Demo3D and common Three.js model formats. Files are parsed and rendered entirely in the browser: there is no upload service, no account and no Vault connection.
 
 The repository is designed for GitHub Pages. The complete minimized CAD runtime is checked in at `public/vendor/cad-viewer-runtime.min.js`, so a clean Pages build does not need unpublished packages or the sibling development repositories.
 
@@ -114,7 +114,7 @@ cd C:/Data/Git/node-projects/acd-ts
 npm install
 npm run build
 
-cd C:/Data/Git/JFK-Solutions/inventor-viewer
+cd C:/Data/Git/JFK-Solutions/native-cad-viewer
 npm install
 npm run bundle:vendor
 npm run build

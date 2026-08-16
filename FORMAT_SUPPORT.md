@@ -1,6 +1,6 @@
 # Model format support
 
-This matrix describes the model files that the JFK Solutions CAD Viewer can open directly in the browser. **Yes** means the extension is currently accepted as a standalone model. **No** means there is no direct loader for it yet.
+This matrix describes the model files that Native CAD Viewer can open directly in the browser. **Yes** means the extension is currently accepted as a standalone model. **No** means there is no direct loader for it yet.
 
 The unsupported section is a practical list of common CAD, BIM, DCC, mesh, animation and point-cloud formats; it is not intended to enumerate every 3D format ever created. An unsupported file may still be usable after conversion to a supported format such as glTF/GLB, STEP, OBJ or STL.
 
@@ -131,6 +131,7 @@ These files may be selected alongside a supported model when it references exter
 | Extension | Resource type |
 | --- | --- |
 | `.bin` | Binary glTF buffer |
+| `.dat` | LDraw part or primitive referenced by an `.ldr` model |
 | `.mtl` | Wavefront OBJ material library |
 | `.png`, `.jpg`, `.jpeg`, `.webp`, `.avif`, `.bmp`, `.gif`, `.tga`, `.dds` | Texture image |
 

@@ -1,9 +1,9 @@
 {
-  "name": "@jfk-solutions/inventor-viewer",
+  "name": "@jfk-solutions/native-cad-viewer",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "A private, browser-based viewer for Autodesk Inventor, CATIA, SolidWorks, AutoCAD, Demo3D and common 3D formats.",
+  "description": "Native CAD Viewer is a private, browser-based viewer for Autodesk Inventor, CATIA, SolidWorks, AutoCAD, Demo3D and common 3D formats.",
   "license": "UNLICENSED",
   "scripts": {
     "dev": "vite",
