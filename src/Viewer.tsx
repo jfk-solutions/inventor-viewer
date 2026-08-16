@@ -819,6 +819,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           const radius = Math.max(size / 2, 1e-9);
           engine.bounds = bounds;
           engine.modelSize = size;
+          if (scene.fog?.isFogExp2) scene.fog.density = Math.min(0.002, 0.25 / size);
           controls.target.copy(center);
           const direction = new THREE.Vector3(1, 0.72, 1).normalize();
           const rect = canvas.getBoundingClientRect();

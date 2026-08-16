@@ -29,7 +29,7 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.step`, `.stp` | STEP parts and assemblies, tessellated locally through the lazy-loaded OpenCascade kernel |
 | `.iges`, `.igs`, `.brep`, `.brp` | IGES exchange models and OpenCascade BREP geometry through the same lazy OpenCascade kernel |
 | `.3dm` | Rhino models through Three.js and the format-triggered `rhino3dm` worker/WASM runtime |
-| `.fcstd` | Visible FreeCAD Part and PartDesign BREP objects; archive decoding and OpenCascade are loaded only for FCStd files |
+| `.fcstd` | FreeCAD Part/PartDesign BREP objects, placed `App::Link` instances, saved colors/transparency and visible line-segment sketches; archive decoding and OpenCascade are loaded only for FCStd files |
 | `.ifc` | IFC building geometry and element metadata through format-triggered `web-ifc` and its local WASM runtime |
 | `.bim`, `.off` | DotBIM scenes and OFF polygon meshes through lightweight built-in parsers |
 | `.zip` | Packaged or mixed workspaces containing native CAD and supported direct-load model documents, with linked files and relative paths preserved |
