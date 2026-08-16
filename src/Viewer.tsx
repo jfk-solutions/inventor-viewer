@@ -92,6 +92,7 @@ function kindFor(path: string) {
     step: "STEP model", stp: "STEP model", iges: "IGES model", igs: "IGES model",
     brep: "OpenCascade BREP", brp: "OpenCascade BREP", "3dm": "Rhino 3DM model",
     bim: "DotBIM model", fcstd: "FreeCAD document", ifc: "IFC building model", off: "OFF mesh",
+    sh3d: "Sweet Home 3D project",
     demo3d: "Demo3D project", raw3d: "RAW3D scene",
   } as Record<string, string>)[extension(path)] ?? "3D model";
 }
@@ -142,8 +143,8 @@ function objectProperties(object: any, hit?: any): PropertySection[] {
   if (!object) return [];
   object.updateWorldMatrix?.(true, false);
   const position = object.getWorldPosition ? object.getWorldPosition(object.position.clone()) : object.position;
-  const metadata = object.userData?.inventor ?? object.userData?.solidworks ?? object.userData?.catia ?? object.userData?.fusion ?? object.userData?.raw3d ?? object.userData?.demo3d ?? {};
-  const metadataTitle = object.userData?.inventor ? "Inventor metadata" : object.userData?.solidworks ? "SolidWorks metadata" : object.userData?.catia ? "CATIA metadata" : object.userData?.fusion ? "Fusion metadata" : object.userData?.raw3d ? "RAW3D metadata" : "Demo3D metadata";
+  const metadata = object.userData?.inventor ?? object.userData?.solidworks ?? object.userData?.catia ?? object.userData?.fusion ?? object.userData?.sweethome3d ?? object.userData?.raw3d ?? object.userData?.demo3d ?? {};
+  const metadataTitle = object.userData?.inventor ? "Inventor metadata" : object.userData?.solidworks ? "SolidWorks metadata" : object.userData?.catia ? "CATIA metadata" : object.userData?.fusion ? "Fusion metadata" : object.userData?.sweethome3d ? "Sweet Home 3D metadata" : object.userData?.raw3d ? "RAW3D metadata" : "Demo3D metadata";
   const primary = [
     { name: "Name", value: object.name || metadata.name || "Unnamed object" },
     { name: "Type", value: metadata.kind ? cleanName(metadata.kind) : object.type },
@@ -189,10 +190,10 @@ function IconForKind({ kind }: { kind: string }) {
 }
 
 function buildTree(object: any, prefix = "root", depth = 0): TreeItem {
-  const kind = cleanName(object.userData?.inventor?.kind ?? object.userData?.solidworks?.kind ?? object.userData?.catia?.kind ?? object.userData?.raw3d?.kind ?? object.userData?.demo3d?.kind ?? object.type ?? "Object");
+  const kind = cleanName(object.userData?.inventor?.kind ?? object.userData?.solidworks?.kind ?? object.userData?.catia?.kind ?? object.userData?.sweethome3d?.kind ?? object.userData?.raw3d?.kind ?? object.userData?.demo3d?.kind ?? object.type ?? "Object");
   return {
     id: `${prefix}-${object.id}`,
-    label: object.name || object.userData?.inventor?.name || object.userData?.solidworks?.name || object.userData?.catia?.name || object.userData?.raw3d?.name || object.userData?.demo3d?.name || kind,
+    label: object.name || object.userData?.inventor?.name || object.userData?.solidworks?.name || object.userData?.catia?.name || object.userData?.sweethome3d?.name || object.userData?.raw3d?.name || object.userData?.demo3d?.name || kind,
     kind,
     object,
     children: depth > 7 ? [] : (object.children ?? [])
@@ -404,6 +405,11 @@ async function loadThreeModel(
     } else if (format === "ifc") {
       const { loadIfcModel } = await import("./formats/ifc");
       model = await loadIfcModel(runtime, file, onProgress);
+    } else if (format === "sh3d") {
+      const { loadSweetHome3dModel } = await import("./formats/sh3d");
+      const result = await loadSweetHome3dModel(runtime, file, onProgress);
+      model = result.model;
+      for (const url of result.objectUrls) objectUrls.set(new File([], url), url);
     } else if (format === "demo3d" || format === "raw3d") {
       model = await loadDemo3DFile(file, THREE);
     } else if (format === "glb" || format === "gltf") {
@@ -498,6 +504,8 @@ async function loadThreeModel(
       model.userData.raw3d = { ...model.userData.raw3d, kind: kindFor(path), sourcePath: path };
     } else if (format === "demo3d") {
       model.userData.demo3d = { ...model.userData.demo3d, kind: kindFor(path), sourcePath: path };
+    } else if (format === "sh3d") {
+      model.userData.sweethome3d = { ...model.userData.sweethome3d, kind: kindFor(path), sourcePath: path };
     } else {
       model.userData.inventor ||= { kind: kindFor(path), sourcePath: path };
     }

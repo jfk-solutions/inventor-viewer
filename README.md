@@ -1,6 +1,6 @@
 # Native CAD Viewer
 
-A modern, static 3D viewer by JFK Solutions for Autodesk Inventor, Fusion, CATIA V4/V5, SolidWorks, AutoCAD, Demo3D and common Three.js model formats. Files are parsed and rendered entirely in the browser: there is no upload service, no account and no Vault connection.
+A modern, static 3D viewer by JFK Solutions for Autodesk Inventor, Fusion, CATIA V4/V5, SolidWorks, AutoCAD, Sweet Home 3D, Demo3D and common Three.js model formats. Files are parsed and rendered entirely in the browser: there is no upload service, no account and no Vault connection.
 
 The repository is designed for GitHub Pages. The complete minimized CAD runtime is checked in at `public/vendor/cad-viewer-runtime.min.js`, so a clean Pages build does not need unpublished packages or the sibling development repositories.
 
@@ -32,6 +32,7 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.fcstd` | FreeCAD Part/PartDesign BREP objects, placed `App::Link` instances, saved colors/transparency and visible line-segment sketches; archive decoding and OpenCascade are loaded only for FCStd files |
 | `.ifc` | IFC building geometry and element metadata through format-triggered `web-ifc` and its local WASM runtime |
 | `.bim`, `.off` | DotBIM scenes and OFF polygon meshes through lightweight built-in parsers |
+| `.sh3d` | Sweet Home 3D 5.3+ projects, including XML-defined levels, rooms, straight/curved walls, wall openings, embedded OBJ/DAE/3DS furniture, materials and textures |
 | `.zip` | Packaged or mixed workspaces containing native CAD and supported direct-load model documents, with linked files and relative paths preserved |
 | `.faf` | Inventor Factory Asset packages |
 | `.glb`, `.gltf` | glTF 2.0 scenes, materials, textures and animations; local sidecar resources can be selected together |

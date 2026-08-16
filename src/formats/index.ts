@@ -10,7 +10,7 @@ export const DEMO3D_MODEL_EXTENSIONS = ["demo3d", "raw3d"] as const;
 
 export const OCCT_MODEL_EXTENSIONS = ["step", "stp", "iges", "igs", "brep", "brp"] as const;
 
-export const SPECIAL_MODEL_EXTENSIONS = ["3dm", "bim", "fcstd", "ifc", "off"] as const;
+export const SPECIAL_MODEL_EXTENSIONS = ["3dm", "bim", "fcstd", "ifc", "off", "sh3d"] as const;
 
 export const THREE_MODEL_EXTENSIONS = [
   "glb", "gltf", "obj", "stl", "ply", "fbx", "3mf", "amf", "dae", "3ds",

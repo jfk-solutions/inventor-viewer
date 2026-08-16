@@ -44,6 +44,7 @@ function FormatPills() {
     <span><Box size={18} /> CAD exchange <b>STEP / IGES / BREP</b></span>
     <span><Box size={18} /> CAD models <b>3DM / FCSTD</b></span>
     <span><Boxes size={18} /> BIM <b>IFC / BIM</b></span>
+    <span><Boxes size={18} /> Interiors <b>SH3D</b></span>
     <span><FileArchive size={18} /> Workspace <b>ZIP</b></span>
     <span><Box size={18} /> 3D models <b>GLB / STL</b></span>
     <span><Box size={18} /> Simulation <b>DEMO3D / RAW3D</b></span>
@@ -101,7 +102,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
         <div className="hero-copy">
           <div className="eyebrow"><span /> Native CAD Viewer by JFK Solutions</div>
           <h1>Your CAD data.<br /><em>Right here.</em></h1>
-          <p>Open Inventor, Fusion, CATIA, SolidWorks, AutoCAD, STEP, Rhino, FreeCAD and IFC files — plus common 3D formats — directly in your browser. No installation. No upload.</p>
+          <p>Open Inventor, Fusion, CATIA, SolidWorks, AutoCAD, STEP, Rhino, FreeCAD, IFC and Sweet Home 3D files — plus common 3D formats — directly in your browser. No installation. No upload.</p>
           <div className="trust-row">
             <span><ShieldCheck size={17} /> Processed locally</span>
             <span><Zap size={17} /> Opens in seconds</span>
@@ -138,6 +139,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
             <div><strong>CAD exchange</strong><span>.step, .stp, .iges, .igs, .brep and .brp geometry with names and colors</span></div>
             <div><strong>Rhino and FreeCAD</strong><span>.3dm models and visible Part/PartDesign geometry from .fcstd documents</span></div>
             <div><strong>Building models</strong><span>.ifc building geometry and .bim DotBIM scenes with element metadata</span></div>
+            <div><strong>Interior designs</strong><span>.sh3d Sweet Home 3D projects with rooms, walls, levels, embedded furniture and textures</span></div>
             <div><strong>Packaged projects</strong><span>.zip workspaces and .faf Factory Assets with linked files</span></div>
             <div><strong>Mesh and scene formats</strong><span>.glb, .gltf, .obj, .off, .stl, .ply, .fbx, .3mf, .dae, .usdz, .md2 and more</span></div>
             <div><strong>Animation and toolpaths</strong><span>.bvh motion capture and .gcode machine toolpaths</span></div>
