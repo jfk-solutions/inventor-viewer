@@ -1,6 +1,6 @@
 # Native CAD Viewer
 
-A modern, static 3D viewer by JFK Solutions for Autodesk Inventor, CATIA V5, SolidWorks, AutoCAD, Demo3D and common Three.js model formats. Files are parsed and rendered entirely in the browser: there is no upload service, no account and no Vault connection.
+A modern, static 3D viewer by JFK Solutions for Autodesk Inventor, Fusion, CATIA V5, SolidWorks, AutoCAD, Demo3D and common Three.js model formats. Files are parsed and rendered entirely in the browser: there is no upload service, no account and no Vault connection.
 
 The repository is designed for GitHub Pages. The complete minimized CAD runtime is checked in at `public/vendor/cad-viewer-runtime.min.js`, so a clean Pages build does not need unpublished packages or the sibling development repositories.
 
@@ -15,11 +15,13 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.idw` | Inventor drawings and drawing display geometry |
 | `.ipn` | Inventor presentations |
 | `.ide` | Inventor iFeature documents |
+| `.f3d` | Fusion design archives with validated native ShapeManager face tessellation and model metadata |
+| `.f3z` | Fusion distributed-design archives with discoverable nested F3D documents |
 | `.CATPart` | CATIA V5 parts with decoded native geometry carriers, hierarchy and metadata |
 | `.CATProduct` | CATIA V5 products with recursively resolved CATPart/CATShape/CGR references and an explicitly diagnosed fallback layout where occurrence transforms are unavailable |
 | `.CATShape`, `.cgr` | CATIA V5 shape and graphical-representation documents |
-| `.sldprt` | SolidWorks parts with saved display-list tessellation, previews, configurations and custom properties |
-| `.sldasm` | SolidWorks assemblies with recursively resolved, transformed occurrences and saved display-list tessellation |
+| `.sldprt` | SolidWorks parts with resilient saved display-list tessellation, feature-scoped materials, previews, configurations and custom properties |
+| `.sldasm` | SolidWorks assemblies with recursively resolved, transformed occurrences, native materials and saved display-list tessellation |
 | `.slddrw` | SolidWorks drawings with saved display geometry or embedded preview fallback |
 | `.dwg` | AutoCAD model space through `@node-projects/acad-ts` |
 | `.dxf` | ASCII and binary DXF; common line, arc, circle, polyline, point and 3D-face entities |
@@ -48,6 +50,8 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.demo3d`, `.raw3d` | Demo3D/Emulate3D projects and render-ready RAW3D scenes, loaded through the lazy `@jfk-solutions/demo3d-file-format` integration |
 
 For assemblies, package the IAM, CATProduct or SLDASM and all referenced documents into one ZIP while retaining their relative paths. The viewer detects the workspace type, discovers candidate root documents and opens the assembly first. CATIA files may also be selected together. Missing references remain visible through model metadata and diagnostics; the viewer never attempts to access Autodesk Vault.
+
+Fusion F3D and F3Z files are decoded by the browser-first `fusion-file-format` reader. The viewer renders validated planar, cylindrical, conical, toroidal and trimmed NURBS faces from native ShapeManager payloads. Unsupported faces are reported in diagnostics and are not replaced with invented geometry; F3Z and generic ZIP snapshots expose each nested F3D document as a selectable root.
 
 CATIA V5 geometry support follows the current `catia-file-format` decoder. Native point and segment carriers are rendered in 3D; surfaces may use a diagnosed convex-hull approximation while exact concave trims and analytic/NURBS tessellation remain under development. Embedded preview images are metadata only and are never substituted for decoded 3D geometry.
 
@@ -115,7 +119,7 @@ npm run bundle:vendor
 npm run build
 ```
 
-`scripts/runtime-entry.mjs` combines Inventor, CATIA and SolidWorks parsing, their viewer adapters, the npm-hosted `@node-projects/acad-ts` package, Three.js, OrbitControls, model loaders and exporters. `scripts/build-vendor.mjs` creates the minified runtime, copies its license notices and the BZip2, OpenCascade, Rhino and IFC browser assets, and updates `src/runtime-version.ts` with its content hash. The unpublished CATIA library is compiled directly from the sibling repository into the committed minified runtime, so production builds remain standalone. OpenCascade, Rhino, IFC and FCStd archive code remain format-triggered rather than entering the initial application payload. Commit the generated runtime, decoder directories and version file whenever their source packages change; the hash prevents browsers and GitHub Pages from reusing an older CAD runtime.
+`scripts/runtime-entry.mjs` combines Inventor, Fusion, CATIA and SolidWorks parsing, their viewer adapters, the npm-hosted `@node-projects/acad-ts` package, Three.js, OrbitControls, model loaders and exporters. `scripts/build-vendor.mjs` creates the minified runtime, copies its license notices and the BZip2, OpenCascade, Rhino and IFC browser assets, and updates `src/runtime-version.ts` with its content hash. The unpublished Fusion and CATIA libraries are compiled directly from sibling repositories into the committed minified runtime, so production builds remain standalone. OpenCascade, Rhino, IFC and FCStd archive code remain format-triggered rather than entering the initial application payload. Commit the generated runtime, decoder directories and version file whenever their source packages change; the hash prevents browsers and GitHub Pages from reusing an older CAD runtime.
 
 ## GitHub Pages
 
@@ -136,6 +140,7 @@ In the GitHub repository, open **Settings → Pages** and set **Source** to **Gi
 - React + TypeScript + Vite for the static application
 - Three.js for WebGL rendering and camera interaction
 - [`inventor-file-format`](https://github.com/JFK-Solutions/inventor-file-format) for Inventor parsing, workspaces, ZIP providers and Three.js scene conversion
+- `fusion-file-format` for F3D/F3Z parsing, native ShapeManager tessellation and snapshot discovery
 - `catia-file-format` for CATIA V5 parsing, ZIP/multi-file workspaces, renderer-neutral scene creation and local Three.js conversion
 - `solidworks-file-format` for browser-native SolidWorks parsing, ZIP workspaces, saved tessellation and Three.js scene conversion
 - [`acad-ts`](https://github.com/node-projects/acad-ts) for DWG/DXF parsing

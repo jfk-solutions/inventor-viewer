@@ -34,6 +34,7 @@ import * as Inventor from "../../inventor-file-format/dist/index.js";
 import * as InventorThree from "../../inventor-file-format/dist/three/index.js";
 import * as InventorStep from "../../inventor-file-format/dist/step/index.js";
 import * as Catia from "../../catia-file-format/dist/index.js";
+import * as Fusion from "../../fusion-file-format/dist/index.js";
 import * as SolidWorks from "../../solidworks-file-format/dist/index.js";
 import * as SolidWorksThree from "../../solidworks-file-format/dist/three/index.js";
 import * as Acad from "@node-projects/acad-ts";
@@ -58,5 +59,5 @@ export {
   LDrawLoader, LDrawConditionalLineMaterial, MD2Loader, MTLLoader, OBJLoader,
   PCDLoader, PLYLoader, Rhino3dmLoader, STLLoader, TDSLoader, TGALoader, ThreeMFLoader, USDLoader,
   VOXLoader, buildVOXMesh, VRMLLoader, VTKLoader, XYZLoader, MeshoptDecoder,
-  Inventor, InventorThree, InventorStep, Catia, SolidWorks, SolidWorksThree, Acad, loadOpenCascade,
+  Inventor, InventorThree, InventorStep, Catia, Fusion, SolidWorks, SolidWorksThree, Acad, loadOpenCascade,
 };

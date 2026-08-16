@@ -31,6 +31,7 @@ import { loadCadRuntime, type CadRuntime } from "./runtime";
 import { ACCEPTED_FILE_TYPES, fileExtension, isDirectModelFile, isResourceFile } from "./formats";
 import { loadOcctModel } from "./formats/step";
 import { createCatiaThreeGroup, disposeCatiaThreeGroup } from "./formats/catia";
+import { createFusionThreeGroup, disposeFusionThreeGroup } from "./formats/fusion";
 
 type ViewerProps = {
   files: File[];
@@ -78,6 +79,7 @@ function kindFor(path: string) {
   return ({
     iam: "Assembly", ipt: "Part", idw: "Drawing", ipn: "Presentation", ide: "iFeature",
     catproduct: "CATIA assembly", catpart: "CATIA part", catshape: "CATIA shape", cgr: "CATIA graphical representation",
+    f3d: "Fusion design", f3z: "Fusion distributed design",
     sldasm: "SolidWorks assembly", sldprt: "SolidWorks part", slddrw: "SolidWorks drawing",
     dwg: "AutoCAD drawing", dxf: "DXF drawing", glb: "Binary glTF", gltf: "glTF model",
     obj: "Wavefront model", stl: "STL mesh", ply: "PLY model", fbx: "FBX model",
@@ -140,8 +142,8 @@ function objectProperties(object: any, hit?: any): PropertySection[] {
   if (!object) return [];
   object.updateWorldMatrix?.(true, false);
   const position = object.getWorldPosition ? object.getWorldPosition(object.position.clone()) : object.position;
-  const metadata = object.userData?.inventor ?? object.userData?.solidworks ?? object.userData?.catia ?? object.userData?.raw3d ?? object.userData?.demo3d ?? {};
-  const metadataTitle = object.userData?.inventor ? "Inventor metadata" : object.userData?.solidworks ? "SolidWorks metadata" : object.userData?.catia ? "CATIA metadata" : object.userData?.raw3d ? "RAW3D metadata" : "Demo3D metadata";
+  const metadata = object.userData?.inventor ?? object.userData?.solidworks ?? object.userData?.catia ?? object.userData?.fusion ?? object.userData?.raw3d ?? object.userData?.demo3d ?? {};
+  const metadataTitle = object.userData?.inventor ? "Inventor metadata" : object.userData?.solidworks ? "SolidWorks metadata" : object.userData?.catia ? "CATIA metadata" : object.userData?.fusion ? "Fusion metadata" : object.userData?.raw3d ? "RAW3D metadata" : "Demo3D metadata";
   const primary = [
     { name: "Name", value: object.name || metadata.name || "Unnamed object" },
     { name: "Type", value: metadata.kind ? cleanName(metadata.kind) : object.type },
@@ -528,6 +530,7 @@ async function createSolidWorksModel(runtime: CadRuntime, document: any, renderS
   const { THREE, SolidWorksThree } = runtime;
   const model = SolidWorksThree.createSolidWorksThreeGroup(renderScene ?? document, { mergeFaces: true });
   const configuration = document.configurations?.[0];
+  const displaySummary = document.displayListSummary;
   const triangleCount = renderScene?.triangleCount ?? (document.displayMeshes ?? []).reduce((total: number, mesh: any) => total + (mesh.indices?.length ?? 0) / 3, 0);
   model.userData.solidworksDocument = true;
   model.userData.solidworks = {
@@ -543,6 +546,13 @@ async function createSolidWorksModel(runtime: CadRuntime, document: any, renderS
     triangles: triangleCount,
     materials: renderScene?.materials?.length ?? document.visualMaterials?.length ?? 0,
     diagnostics: renderScene?.diagnostics?.length ?? document.diagnostics?.length ?? 0,
+    ...(displaySummary ? {
+      geometryFingerprint: displaySummary.geometryHash,
+      storedTriangles: displaySummary.storedTriangleCount,
+      discardedDegenerateTriangles: displaySummary.discardedDegenerateTriangleCount,
+      tessellationBlocks: `${displaySummary.decodedBlockCount} decoded · ${displaySummary.rejectedBlockCount} rejected`,
+      normalCoverage: `${displaySummary.savedNormalMeshCount} saved · ${displaySummary.missingNormalMeshCount} missing · ${displaySummary.discardedNormalMeshCount} discarded`,
+    } : {}),
   };
   if (triangleCount) return { model, objectUrls: [] as string[] };
 
@@ -653,6 +663,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
     let animation = 0;
     let resizeObserver: ResizeObserver | undefined;
     let workspace: any;
+    const fusionSnapshots: any[] = [];
     let rootController: AbortController | undefined;
     let rootGeneration = 0;
 
@@ -663,7 +674,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         setProgress(10);
         const runtime = await loadCadRuntime();
         if (disposed) return;
-        const { THREE, OrbitControls, Inventor, InventorThree, Catia, SolidWorks, SolidWorksThree } = runtime;
+        const { THREE, OrbitControls, Inventor, InventorThree, Catia, Fusion, SolidWorks, SolidWorksThree } = runtime;
         const canvas = canvasRef.current!;
         const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: "high-performance" });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -849,7 +860,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           if (engine.model.userData?.solidworksDocument) {
             engine.model.userData.solidworksPreviewTexture?.dispose?.();
             SolidWorksThree.disposeSolidWorksThreeGroup?.(engine.model);
-          } else if (!disposeCatiaThreeGroup(engine.model) && !disposeDemo3DModel(engine.model)) InventorThree.disposeInventorThreeGroup?.(engine.model);
+          } else if (!disposeCatiaThreeGroup(engine.model) && !disposeFusionThreeGroup(engine.model) && !disposeDemo3DModel(engine.model)) InventorThree.disposeInventorThreeGroup?.(engine.model);
           for (const url of engine.objectUrls ?? []) URL.revokeObjectURL(url);
           engine.objectUrls = [];
           engine.model = null;
@@ -1028,6 +1039,102 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
               return;
             }
             presentModel(model);
+          };
+        }
+
+        const fusionRootOpeners = new Map<string, () => Promise<any>>();
+        const addFusionRoot = (preferredPath: string, scope: string, open: () => Promise<any>) => {
+          let path = preferredPath.replace(/\\/g, "/");
+          if (fusionRootOpeners.has(path.toLocaleLowerCase())) path = `${scope.replace(/\\/g, "/")}/${path}`;
+          let suffix = 2;
+          const basePath = path;
+          while (fusionRootOpeners.has(path.toLocaleLowerCase())) path = `${basePath} (${suffix++})`;
+          fusionRootOpeners.set(path.toLocaleLowerCase(), open);
+          return path;
+        };
+        const fusionRootOptions: RootOption[] = [];
+        const fusionFiles = files.filter((file) => /\.(?:f3d|f3z)$/i.test(file.name));
+        for (const file of fusionFiles) {
+          const path = filePath(file);
+          if (/\.f3d$/i.test(file.name)) {
+            const rootPath = addFusionRoot(path, path, () => Fusion.parseFusionDocument(file, { name: path }));
+            fusionRootOptions.push({ path: rootPath, label: rootPath, kind: kindFor(rootPath) });
+            continue;
+          }
+
+          setStatus(`Indexing ${path}…`);
+          setProgress(30);
+          const opened = await Fusion.openFusion(file, { name: path });
+          if (opened.kind === "document") {
+            await opened.document.close();
+            const rootPath = addFusionRoot(path, path, async () => {
+              const next = await Fusion.openFusion(file, { name: path });
+              if (next.kind !== "document") throw new Error(`${path} is not a Fusion design document.`);
+              return next.document;
+            });
+            fusionRootOptions.push({ path: rootPath, label: rootPath, kind: kindFor(rootPath) });
+          } else if (opened.kind === "snapshot") {
+            fusionSnapshots.push(opened.snapshot);
+            for (const entry of opened.snapshot.entries.filter((item: any) => item.category === "fusion")) {
+              const rootPath = addFusionRoot(entry.name, path, async () => {
+                const nested = await opened.snapshot.open(entry.name);
+                if (nested.kind !== "document") throw new Error(`${entry.name} is not a Fusion design document.`);
+                return nested.document;
+              });
+              fusionRootOptions.push({ path: rootPath, label: rootPath, kind: kindFor(rootPath) });
+            }
+          }
+        }
+        if (sharedZipProvider) {
+          for (const entry of sharedZipInventory.filter((item: any) => /\.f3d$/i.test(item.path))) {
+            const rootPath = addFusionRoot(entry.path, files[0].name, async () => Fusion.parseFusionDocument(
+              await readSharedZipEntry(entry.path),
+              { name: entry.path },
+            ));
+            fusionRootOptions.push({ path: rootPath, label: rootPath, kind: kindFor(rootPath) });
+          }
+        }
+
+        let openFusionRoot: ((path: string) => Promise<void>) | undefined;
+        if (fusionRootOptions.length) {
+          openFusionRoot = async (path: string) => {
+            if (disposed) return;
+            const generation = ++rootGeneration;
+            rootController?.abort();
+            const controller = new AbortController();
+            rootController = controller;
+            const isCurrent = () => !disposed && !controller.signal.aborted && generation === rootGeneration;
+            const openDocument = fusionRootOpeners.get(path.toLocaleLowerCase());
+            if (!openDocument) throw new Error(`The Fusion document ${path} is unavailable.`);
+            setActiveRoot(path);
+            setTree(null);
+            clearSelection();
+            setError(null);
+            setStatus(`Parsing ${path}…`);
+            setProgress(58);
+            releaseModel();
+            const document = await openDocument();
+            try {
+              if (!isCurrent()) return;
+              setStatus("Decoding Fusion ShapeManager geometry…");
+              setProgress(70);
+              const renderScene = await Fusion.createFusionRenderScene(document);
+              if (!isCurrent()) return;
+              if (!renderScene.meshes.length) {
+                const detail = renderScene.diagnostics.find((item: any) => item.severity === "warning")?.message;
+                throw new Error(detail ?? `No supported 3D geometry was decoded from ${path}.`);
+              }
+              setStatus("Preparing Fusion materials and geometry…");
+              setProgress(84);
+              const model = createFusionThreeGroup(runtime, renderScene, document, path);
+              if (!isCurrent()) {
+                disposeFusionThreeGroup(model);
+                return;
+              }
+              presentModel(model);
+            } finally {
+              await document.close?.();
+            }
           };
         }
 
@@ -1226,7 +1333,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           }
         };
 
-        const rootOptions = [...inventorRootOptions, ...solidWorksRootOptions, ...catiaRootOptions, ...directRootOptions, ...archiveDirectRootOptions];
+        const rootOptions = [...inventorRootOptions, ...fusionRootOptions, ...solidWorksRootOptions, ...catiaRootOptions, ...directRootOptions, ...archiveDirectRootOptions];
         if (!rootOptions.length) throw new Error("No supported CAD document was found in this selection.");
         setRoots(rootOptions);
         const openWorkspaceRoot = async (path: string) => {
@@ -1237,6 +1344,10 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           if (/\.(?:catpart|catproduct|catshape|cgr)$/i.test(path)) {
             if (!openCatiaRoot) throw new Error(`The CATIA workspace for ${path} is unavailable.`);
             return openCatiaRoot(path);
+          }
+          if (/\.f3d$/i.test(path) || fusionRootOpeners.has(path.toLocaleLowerCase())) {
+            if (!openFusionRoot) throw new Error(`The Fusion workspace for ${path} is unavailable.`);
+            return openFusionRoot(path);
           }
           if (archiveDirectEntriesByPath.has(path.toLocaleLowerCase())) {
             if (!openArchiveDirectRoot) throw new Error(`The packaged model loader for ${path} is unavailable.`);
@@ -1270,6 +1381,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
       cancelAnimationFrame(animation);
       resizeObserver?.disconnect();
       workspace?.close?.().catch(console.warn);
+      for (const snapshot of fusionSnapshots) snapshot.close?.().catch(console.warn);
       const engine = engineRef.current;
       if (engine) {
         engine.controls?.dispose?.();

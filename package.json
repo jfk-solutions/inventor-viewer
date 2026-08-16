@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Native CAD Viewer is a private, browser-based viewer for Autodesk Inventor, CATIA, SolidWorks, AutoCAD, Demo3D and common 3D formats.",
+  "description": "Native CAD Viewer is a private, browser-based viewer for Autodesk Inventor, Fusion, CATIA, SolidWorks, AutoCAD, Demo3D and common 3D formats.",
   "license": "UNLICENSED",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@jfk-solutions/demo3d-file-format": "^1.8.0",
-    "@node-projects/acad-ts": "^2.4.0",
+    "@node-projects/acad-ts": "^2.4.2",
     "fflate": "0.8.3",
     "lucide-react": "^0.468.0",
     "react": "^19.2.0",
