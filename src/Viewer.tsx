@@ -32,6 +32,7 @@ import { ACCEPTED_FILE_TYPES, fileExtension, isDirectModelFile, isResourceFile }
 import { loadOcctModel } from "./formats/step";
 import { createCatiaThreeGroup, disposeCatiaThreeGroup } from "./formats/catia";
 import { createFusionThreeGroup, disposeFusionThreeGroup } from "./formats/fusion";
+import { createNxThreeGroup, disposeNxThreeGroup } from "./formats/nx";
 
 type ViewerProps = {
   files: File[];
@@ -78,6 +79,7 @@ function extension(path: string) {
 function kindFor(path: string) {
   return ({
     iam: "Assembly", ipt: "Part", idw: "Drawing", ipn: "Presentation", ide: "iFeature",
+    prt: "Siemens NX part or assembly", xzip: "Siemens NX archive",
     catproduct: "CATIA assembly", catpart: "CATIA part", catshape: "CATIA shape", cgr: "CATIA graphical representation", model: "CATIA V4 MODEL",
     f3d: "Fusion design", f3z: "Fusion distributed design",
     sldasm: "SolidWorks assembly", sldprt: "SolidWorks part", slddrw: "SolidWorks drawing",
@@ -143,8 +145,8 @@ function objectProperties(object: any, hit?: any): PropertySection[] {
   if (!object) return [];
   object.updateWorldMatrix?.(true, false);
   const position = object.getWorldPosition ? object.getWorldPosition(object.position.clone()) : object.position;
-  const metadata = object.userData?.inventor ?? object.userData?.solidworks ?? object.userData?.catia ?? object.userData?.fusion ?? object.userData?.sweethome3d ?? object.userData?.raw3d ?? object.userData?.demo3d ?? {};
-  const metadataTitle = object.userData?.inventor ? "Inventor metadata" : object.userData?.solidworks ? "SolidWorks metadata" : object.userData?.catia ? "CATIA metadata" : object.userData?.fusion ? "Fusion metadata" : object.userData?.sweethome3d ? "Sweet Home 3D metadata" : object.userData?.raw3d ? "RAW3D metadata" : "Demo3D metadata";
+  const metadata = object.userData?.inventor ?? object.userData?.nx ?? object.userData?.solidworks ?? object.userData?.catia ?? object.userData?.fusion ?? object.userData?.sweethome3d ?? object.userData?.raw3d ?? object.userData?.demo3d ?? {};
+  const metadataTitle = object.userData?.inventor ? "Inventor metadata" : object.userData?.nx ? "Siemens NX metadata" : object.userData?.solidworks ? "SolidWorks metadata" : object.userData?.catia ? "CATIA metadata" : object.userData?.fusion ? "Fusion metadata" : object.userData?.sweethome3d ? "Sweet Home 3D metadata" : object.userData?.raw3d ? "RAW3D metadata" : "Demo3D metadata";
   const primary = [
     { name: "Name", value: object.name || metadata.name || "Unnamed object" },
     { name: "Type", value: metadata.kind ? cleanName(metadata.kind) : object.type },
@@ -190,10 +192,10 @@ function IconForKind({ kind }: { kind: string }) {
 }
 
 function buildTree(object: any, prefix = "root", depth = 0): TreeItem {
-  const kind = cleanName(object.userData?.inventor?.kind ?? object.userData?.solidworks?.kind ?? object.userData?.catia?.kind ?? object.userData?.sweethome3d?.kind ?? object.userData?.raw3d?.kind ?? object.userData?.demo3d?.kind ?? object.type ?? "Object");
+  const kind = cleanName(object.userData?.inventor?.kind ?? object.userData?.nx?.kind ?? object.userData?.solidworks?.kind ?? object.userData?.catia?.kind ?? object.userData?.sweethome3d?.kind ?? object.userData?.raw3d?.kind ?? object.userData?.demo3d?.kind ?? object.type ?? "Object");
   return {
     id: `${prefix}-${object.id}`,
-    label: object.name || object.userData?.inventor?.name || object.userData?.solidworks?.name || object.userData?.catia?.name || object.userData?.sweethome3d?.name || object.userData?.raw3d?.name || object.userData?.demo3d?.name || kind,
+    label: object.name || object.userData?.inventor?.name || object.userData?.nx?.name || object.userData?.solidworks?.name || object.userData?.catia?.name || object.userData?.sweethome3d?.name || object.userData?.raw3d?.name || object.userData?.demo3d?.name || kind,
     kind,
     object,
     children: depth > 7 ? [] : (object.children ?? [])
@@ -682,7 +684,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         setProgress(10);
         const runtime = await loadCadRuntime();
         if (disposed) return;
-        const { THREE, OrbitControls, Inventor, InventorThree, Catia, CatiaV4, Fusion, SolidWorks, SolidWorksThree } = runtime;
+        const { THREE, OrbitControls, Inventor, InventorThree, Nx, Catia, CatiaV4, Fusion, SolidWorks, SolidWorksThree } = runtime;
         const canvas = canvasRef.current!;
         const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: "high-performance" });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -876,7 +878,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           if (engine.model.userData?.solidworksDocument) {
             engine.model.userData.solidworksPreviewTexture?.dispose?.();
             SolidWorksThree.disposeSolidWorksThreeGroup?.(engine.model);
-          } else if (!disposeCatiaThreeGroup(engine.model) && !disposeFusionThreeGroup(engine.model) && !disposeDemo3DModel(engine.model)) InventorThree.disposeInventorThreeGroup?.(engine.model);
+          } else if (!disposeNxThreeGroup(engine.model) && !disposeCatiaThreeGroup(engine.model) && !disposeFusionThreeGroup(engine.model) && !disposeDemo3DModel(engine.model)) InventorThree.disposeInventorThreeGroup?.(engine.model);
           for (const url of engine.objectUrls ?? []) URL.revokeObjectURL(url);
           engine.objectUrls = [];
           engine.model = null;
@@ -941,6 +943,69 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           try { return await source.read(0, Math.min(source.size, maximumBytes)); }
           finally { await source.close?.(); }
         };
+
+        const nxFiles = files.filter((file) => /\.(?:prt|xzip)$/i.test(file.name));
+        const nxArchiveEntries = sharedZipInventory.filter((item: any) => /\.prt$/i.test(item.path));
+        let nxArchive: any;
+        if (nxFiles.length || nxArchiveEntries.length) {
+          setStatus("Reading Siemens NX workspace…");
+          setProgress(22);
+          if (nxFiles.length) {
+            nxArchive = await Nx.openNxFiles(nxFiles);
+          } else {
+            const sources = [];
+            for (const entry of nxArchiveEntries) sources.push({ name: entry.path, source: await readSharedZipEntry(entry.path) });
+            nxArchive = await Nx.openNxFiles(sources);
+          }
+        }
+
+        const nxDocumentsByPath = new Map<string, any>();
+        const nxRootOptions: RootOption[] = [];
+        for (const item of nxArchive?.documents ?? []) {
+          let path = item.path.replace(/\\/g, "/");
+          let suffix = 2;
+          while (nxDocumentsByPath.has(path.toLocaleLowerCase())) path = `${suffix++}/${item.path.replace(/\\/g, "/")}`;
+          nxDocumentsByPath.set(path.toLocaleLowerCase(), item.document);
+          nxRootOptions.push({ path, label: path, kind: `Siemens NX ${item.document.kind}` });
+        }
+        nxRootOptions.sort((left, right) => {
+          const priority = (item: RootOption) => /assembly/i.test(item.kind) ? 0 : /part/i.test(item.kind) ? 1 : /drawing/i.test(item.kind) ? 2 : 3;
+          return priority(left) - priority(right) || left.path.localeCompare(right.path, undefined, { numeric: true });
+        });
+
+        let openNxRoot: ((path: string) => Promise<void>) | undefined;
+        if (nxRootOptions.length) {
+          openNxRoot = async (path: string) => {
+            if (disposed) return;
+            const generation = ++rootGeneration;
+            rootController?.abort();
+            const controller = new AbortController();
+            rootController = controller;
+            const isCurrent = () => !disposed && !controller.signal.aborted && generation === rootGeneration;
+            const document = nxDocumentsByPath.get(path.toLocaleLowerCase());
+            if (!document) throw new Error(`The Siemens NX document ${path} is unavailable.`);
+            setActiveRoot(path);
+            setTree(null);
+            clearSelection();
+            setError(null);
+            setStatus(`Preparing Siemens NX geometry for ${path}…`);
+            setProgress(72);
+            releaseModel();
+            const triangleCount = document.meshes.reduce((total: number, mesh: any) => total + mesh.indices.length / 3, 0);
+            if (!triangleCount && !document.preview) {
+              const detail = document.diagnostics?.[0]?.message;
+              throw new Error(detail ?? `No supported embedded JT display geometry was decoded from ${path}.`);
+            }
+            const loaded = await createNxThreeGroup(runtime, document, path);
+            if (!isCurrent()) {
+              disposeNxThreeGroup(loaded.model);
+              for (const url of loaded.objectUrls) URL.revokeObjectURL(url);
+              return;
+            }
+            setProgress(88);
+            presentModel(loaded.model, loaded.objectUrls);
+          };
+        }
 
         const solidWorksFiles = files.filter((file) => /\.(?:sldprt|sldasm|slddrw)$/i.test(file.name));
         let solidWorksWorkspace: any;
@@ -1414,10 +1479,14 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           }
         };
 
-        const rootOptions = [...inventorRootOptions, ...fusionRootOptions, ...solidWorksRootOptions, ...catiaRootOptions, ...catiaV4RootOptions, ...directRootOptions, ...archiveDirectRootOptions];
+        const rootOptions = [...inventorRootOptions, ...nxRootOptions, ...fusionRootOptions, ...solidWorksRootOptions, ...catiaRootOptions, ...catiaV4RootOptions, ...directRootOptions, ...archiveDirectRootOptions];
         if (!rootOptions.length) throw new Error("No supported CAD document was found in this selection.");
         setRoots(rootOptions);
         const openWorkspaceRoot = async (path: string) => {
+          if (nxDocumentsByPath.has(path.toLocaleLowerCase())) {
+            if (!openNxRoot) throw new Error(`The Siemens NX workspace for ${path} is unavailable.`);
+            return openNxRoot(path);
+          }
           if (/\.(?:sldprt|sldasm|slddrw)$/i.test(path)) {
             if (!openSolidWorksRoot) throw new Error(`The SolidWorks workspace for ${path} is unavailable.`);
             return openSolidWorksRoot(path);

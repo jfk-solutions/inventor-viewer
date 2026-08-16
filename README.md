@@ -1,8 +1,8 @@
 # Native CAD Viewer
 
-A modern, static 3D viewer by JFK Solutions for Autodesk Inventor, Fusion, CATIA V4/V5, SolidWorks, AutoCAD, Sweet Home 3D, Demo3D and common Three.js model formats. Files are parsed and rendered entirely in the browser: there is no upload service, no account and no Vault connection.
+A modern, static 3D viewer by JFK Solutions for Autodesk Inventor, Siemens NX, Fusion, CATIA V4/V5, SolidWorks, AutoCAD, Sweet Home 3D, Demo3D and common Three.js model formats. Files are parsed and rendered entirely in the browser: there is no upload service, no account and no Vault connection.
 
-The repository is designed for GitHub Pages. The complete minimized CAD runtime is checked in at `public/vendor/cad-viewer-runtime.min.js`, so a clean Pages build does not need unpublished packages or the sibling development repositories.
+The repository is designed for GitHub Pages. The complete minified CAD runtime is checked in at `public/vendor/cad-viewer-runtime.min.js`, so a clean Pages build does not need unpublished packages or the sibling development repositories.
 
 ## Supported files
 
@@ -15,6 +15,8 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.idw` | Inventor drawings and drawing display geometry |
 | `.ipn` | Inventor presentations |
 | `.ide` | Inventor iFeature documents |
+| `.prt` | Siemens NX parts, assemblies and drawings with embedded JT 9.x display geometry, metadata, references, diagnostics and preview fallback |
+| `.xzip` | Siemens NX ZIP/XZIP collections with discoverable PRT documents and sibling-reference resolution |
 | `.f3d` | Fusion design archives with validated native ShapeManager face tessellation and model metadata |
 | `.f3z` | Fusion distributed-design archives with discoverable nested F3D documents |
 | `.model` | CATIA V4 MODEL headers and metadata; renderer geometry comes from a same-name AP214 `.stp` or `.step` companion selected alongside it or contained in the same ZIP |
@@ -51,7 +53,9 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.md2` | Quake II models with morph-target animation clips |
 | `.demo3d`, `.raw3d` | Demo3D/Emulate3D projects and render-ready RAW3D scenes, loaded through the lazy `@jfk-solutions/demo3d-file-format` integration |
 
-For assemblies, package the IAM, CATProduct or SLDASM and all referenced documents into one ZIP while retaining their relative paths. The viewer detects the workspace type, discovers candidate root documents and opens the assembly first. CATIA files may also be selected together. Missing references remain visible through model metadata and diagnostics; the viewer never attempts to access Autodesk Vault.
+For assemblies, package the IAM, NX PRT, CATProduct or SLDASM and all referenced documents into one ZIP while retaining their relative paths. The viewer detects the workspace type, discovers candidate root documents and opens the assembly first. NX, CATIA and other workspace files may also be selected together. Missing references remain visible through model metadata and diagnostics; the viewer never attempts to access Autodesk Vault.
+
+Siemens NX support reads modern SPLM and legacy Compound File Binary PRT containers and decodes embedded JT 9.x display meshes locally. Reference-only assemblies resolve against sibling PRT files; until native occurrence transforms are decoded, those components use the reader's explicitly diagnosed surrogate layout. JT 10.x, exact Parasolid B-Rep and Creo PRT files are not currently supported.
 
 Fusion F3D and F3Z files are decoded by the browser-first `fusion-file-format` reader. The viewer renders validated planar, cylindrical, conical, toroidal and trimmed NURBS faces from native ShapeManager payloads. Unsupported faces are reported in diagnostics and are not replaced with invented geometry; F3Z and generic ZIP snapshots expose each nested F3D document as a selectable root.
 
@@ -98,6 +102,7 @@ Normal application builds use the committed runtime and therefore work from a st
 
 ```text
 C:\Data\Git\JFK-Solutions\inventor-file-format
+C:\Data\Git\JFK-Solutions\simaticnx-file-format
 C:\Data\Git\JFK-Solutions\catia-file-format
 C:\Data\Git\JFK-Solutions\solidworks-file-format
 ```
@@ -109,6 +114,10 @@ cd C:/Data/Git/JFK-Solutions/inventor-file-format
 npm install
 npm run build
 
+cd C:/Data/Git/JFK-Solutions/simaticnx-file-format
+npm install
+npm run build
+
 cd C:/Data/Git/JFK-Solutions/catia-file-format
 npm install
 npm run build
@@ -117,13 +126,13 @@ cd C:/Data/Git/JFK-Solutions/solidworks-file-format
 npm install
 npm run build
 
-cd C:/Data/Git/JFK-Solutions/native-cad-viewer
+cd C:/Data/Git/JFK-Solutions/inventor-viewer
 npm install
 npm run bundle:vendor
 npm run build
 ```
 
-`scripts/runtime-entry.mjs` combines Inventor, Fusion, CATIA and SolidWorks parsing, their viewer adapters, the npm-hosted `@node-projects/acad-ts` package, Three.js, OrbitControls, model loaders and exporters. `scripts/build-vendor.mjs` creates the minified runtime, copies its license notices and the BZip2, OpenCascade, Rhino and IFC browser assets, and updates `src/runtime-version.ts` with its content hash. The unpublished Fusion and CATIA libraries are compiled directly from sibling repositories into the committed minified runtime, so production builds remain standalone. OpenCascade, Rhino, IFC and FCStd archive code remain format-triggered rather than entering the initial application payload. Commit the generated runtime, decoder directories and version file whenever their source packages change; the hash prevents browsers and GitHub Pages from reusing an older CAD runtime.
+`scripts/runtime-entry.mjs` combines Inventor, Siemens NX, Fusion, CATIA and SolidWorks parsing, their viewer adapters, the npm-hosted `@node-projects/acad-ts` package, Three.js, OrbitControls, model loaders and exporters. `scripts/build-vendor.mjs` creates the minified runtime, copies its license notices and the BZip2, OpenCascade, Rhino and IFC browser assets, and updates `src/runtime-version.ts` with its content hash. The unpublished Siemens NX, Fusion and CATIA libraries are compiled directly from sibling repositories into the committed minified runtime, so production builds remain standalone. OpenCascade, Rhino, IFC and FCStd archive code remain format-triggered rather than entering the initial application payload. Commit the generated runtime, decoder directories and version file whenever their source packages change; the hash prevents browsers and GitHub Pages from reusing an older CAD runtime.
 
 ## GitHub Pages
 
@@ -144,6 +153,7 @@ In the GitHub repository, open **Settings → Pages** and set **Source** to **Gi
 - React + TypeScript + Vite for the static application
 - Three.js for WebGL rendering and camera interaction
 - [`inventor-file-format`](https://github.com/JFK-Solutions/inventor-file-format) for Inventor parsing, workspaces, ZIP providers and Three.js scene conversion
+- `simaticnx-file-format` for Siemens NX PRT/SPLM/CFB parsing, embedded JT display geometry and multi-file reference resolution
 - `fusion-file-format` for F3D/F3Z parsing, native ShapeManager tessellation and snapshot discovery
 - `catia-file-format` for isolated CATIA V4 MODEL/STEP-companion support plus CATIA V5 parsing, ZIP/multi-file workspaces, renderer-neutral scene creation and local Three.js conversion
 - `solidworks-file-format` for browser-native SolidWorks parsing, ZIP workspaces, saved tessellation and Three.js scene conversion

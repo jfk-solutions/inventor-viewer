@@ -24,6 +24,8 @@ const catiaLicense = path.join(root, "..", "catia-file-format", "LICENSE");
 const catiaNotices = path.join(root, "..", "catia-file-format", "THIRD_PARTY_NOTICES.md");
 const fusionLicense = path.join(root, "..", "fusion-file-format", "LICENSE");
 const fusionNotices = path.join(root, "..", "fusion-file-format", "THIRD_PARTY_NOTICES.md");
+const nxLicense = path.join(root, "..", "simaticnx-file-format", "LICENSE");
+const nxNotices = path.join(root, "..", "simaticnx-file-format", "THIRD_PARTY_NOTICES.md");
 const licenseTarget = path.join(root, "public", "vendor", "licenses");
 
 await mkdir(path.dirname(outfile), { recursive: true });
@@ -85,6 +87,8 @@ await copyFile(catiaLicense, path.join(licenseTarget, "catia-file-format-LICENSE
 await copyFile(catiaNotices, path.join(licenseTarget, "catia-file-format-NOTICES.md"));
 await copyFile(fusionLicense, path.join(licenseTarget, "fusion-file-format-LICENSE"));
 await copyFile(fusionNotices, path.join(licenseTarget, "fusion-file-format-NOTICES.md"));
+await copyFile(nxLicense, path.join(licenseTarget, "simaticnx-file-format-LICENSE"));
+await copyFile(nxNotices, path.join(licenseTarget, "simaticnx-file-format-NOTICES.md"));
 
 // Generated template literals can inherit trailing spaces from upstream shader
 // sources. Keep the committed browser bundle clean and reproducible.
