@@ -92,7 +92,6 @@ Normal application builds use the committed runtime and therefore work from a st
 C:\Data\Git\JFK-Solutions\inventor-file-format
 C:\Data\Git\JFK-Solutions\catia-file-format
 C:\Data\Git\JFK-Solutions\solidworks-file-format
-C:\Data\Git\node-projects\acd-ts
 ```
 
 Build the native CAD libraries, then regenerate the browser bundle:
@@ -110,17 +109,13 @@ cd C:/Data/Git/JFK-Solutions/solidworks-file-format
 npm install
 npm run build
 
-cd C:/Data/Git/node-projects/acd-ts
-npm install
-npm run build
-
 cd C:/Data/Git/JFK-Solutions/native-cad-viewer
 npm install
 npm run bundle:vendor
 npm run build
 ```
 
-`scripts/runtime-entry.mjs` combines Inventor, CATIA and SolidWorks parsing, their viewer adapters, `acad-ts`, Three.js, OrbitControls, model loaders and exporters. `scripts/build-vendor.mjs` creates the minified runtime, copies its license notices and the BZip2, OpenCascade, Rhino and IFC browser assets, and updates `src/runtime-version.ts` with its content hash. The unpublished CATIA library is compiled directly from the sibling repository into the committed minified runtime, so production builds remain standalone. OpenCascade, Rhino, IFC and FCStd archive code remain format-triggered rather than entering the initial application payload. Commit the generated runtime, decoder directories and version file whenever their source packages change; the hash prevents browsers and GitHub Pages from reusing an older CAD runtime.
+`scripts/runtime-entry.mjs` combines Inventor, CATIA and SolidWorks parsing, their viewer adapters, the npm-hosted `@node-projects/acad-ts` package, Three.js, OrbitControls, model loaders and exporters. `scripts/build-vendor.mjs` creates the minified runtime, copies its license notices and the BZip2, OpenCascade, Rhino and IFC browser assets, and updates `src/runtime-version.ts` with its content hash. The unpublished CATIA library is compiled directly from the sibling repository into the committed minified runtime, so production builds remain standalone. OpenCascade, Rhino, IFC and FCStd archive code remain format-triggered rather than entering the initial application payload. Commit the generated runtime, decoder directories and version file whenever their source packages change; the hash prevents browsers and GitHub Pages from reusing an older CAD runtime.
 
 ## GitHub Pages
 

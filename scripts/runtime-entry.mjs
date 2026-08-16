@@ -36,7 +36,7 @@ import * as InventorStep from "../../inventor-file-format/dist/step/index.js";
 import * as Catia from "../../catia-file-format/dist/index.js";
 import * as SolidWorks from "../../solidworks-file-format/dist/index.js";
 import * as SolidWorksThree from "../../solidworks-file-format/dist/three/index.js";
-import * as Acad from "../../../node-projects/acd-ts/dist/index.js";
+import * as Acad from "@node-projects/acad-ts";
 
 let openCascadePromise;
 

@@ -7,7 +7,7 @@ The minimized browser runtime and application build include the following open-s
 | `@jfk-solutions/inventor-file-format` | 0.1.0 | MIT |
 | `@jfk-solutions/catia-file-format` | 0.1.0 | MIT |
 | `@jfk-solutions/solidworks-file-format` | 0.1.0 | MIT |
-| `@node-projects/acad-ts` | 2.4.2 | MIT |
+| `@node-projects/acad-ts` | 2.4.0 | MIT |
 | `@jfk-solutions/demo3d-file-format` | 1.8.0 | MIT |
 | `three` | 0.185.1 | MIT |
 | `earcut` | 3.2.3 | ISC |
