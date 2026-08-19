@@ -34,7 +34,7 @@ import { createCatiaThreeGroup, disposeCatiaThreeGroup } from "./formats/catia";
 import { createFusionThreeFaceHighlight, createFusionThreeGroup, disposeFusionThreeGroup, resolveFusionThreeFaceHit } from "./formats/fusion";
 import { createNxThreeGroup, disposeNxThreeGroup } from "./formats/nx";
 import { createCreoThreeGroup, disposeCreoThreeGroup } from "./formats/creo";
-import { createSolidEdgeThreeGroup, disposeSolidEdgeThreeGroup } from "./formats/solidedge";
+import { createSolidEdgeThreeGroup, disposeSolidEdgeThreeGroup, resolveSolidEdgeThreeHit } from "./formats/solidedge";
 
 type ViewerProps = {
   files: File[];
@@ -183,6 +183,13 @@ function objectProperties(object: any, hit?: any): PropertySection[] {
       { name: "Native surface", value: summary(hit.fusionFace.nativeSurface) },
       { name: "Surface type", value: summary(hit.fusionFace.geometry) },
       { name: "Material ID", value: summary(hit.fusionFace.materialId) },
+    ] : []),
+    ...(hit.solidEdgeHit ? [
+      { name: "Display record", value: summary(hit.solidEdgeHit.record.recordId) },
+      { name: "Record triangle", value: summary(hit.solidEdgeHit.triangleIndexInRecord) },
+      { name: "Persistent IDs", value: summary(hit.solidEdgeHit.persistentIds) },
+      { name: "Source vertices", value: summary(hit.solidEdgeHit.sourceVertexIndices) },
+      { name: "Native style", value: summary(hit.solidEdgeHit.record.appearance?.styleName) },
     ] : []),
     { name: "Point", value: summary(hit.point?.toArray?.()) },
   ] : [];
@@ -655,12 +662,13 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
       engine.helper.material?.dispose?.();
     }
     const fusionFaceHit = hit ? resolveFusionThreeFaceHit(engine.runtime, hit) : undefined;
+    const solidEdgeHit = hit ? resolveSolidEdgeThreeHit(engine.runtime, hit) : undefined;
     engine.helper = fusionFaceHit ? createFusionThreeFaceHighlight(engine.runtime, hit) : undefined;
     engine.helper ??= new engine.THREE.BoxHelper(object, 0xf2a900);
     engine.helper.renderOrder = fusionFaceHit ? 10_000 : 20;
     engine.scene.add(engine.helper);
     setSelected(object);
-    setProperties(objectProperties(object, fusionFaceHit ? { ...hit, fusionFace: fusionFaceHit.face } : hit));
+    setProperties(objectProperties(object, hit ? { ...hit, fusionFace: fusionFaceHit?.face, solidEdgeHit } : hit));
   }, []);
 
   const clearSelection = useCallback(() => {
@@ -685,6 +693,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
     let animation = 0;
     let resizeObserver: ResizeObserver | undefined;
     let workspace: any;
+    let solidEdgeWorkspace: any;
     const fusionSnapshots: any[] = [];
     let rootController: AbortController | undefined;
     let rootGeneration = 0;
@@ -890,7 +899,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           if (engine.model.userData?.solidworksDocument) {
             engine.model.userData.solidworksPreviewTexture?.dispose?.();
             SolidWorksThree.disposeSolidWorksThreeGroup?.(engine.model);
-          } else if (!disposeCreoThreeGroup(engine.model) && !disposeSolidEdgeThreeGroup(engine.model) && !disposeNxThreeGroup(engine.model) && !disposeCatiaThreeGroup(engine.model) && !disposeFusionThreeGroup(runtime, engine.model) && !disposeDemo3DModel(engine.model)) InventorThree.disposeInventorThreeGroup?.(engine.model);
+          } else if (!disposeCreoThreeGroup(engine.model) && !disposeSolidEdgeThreeGroup(runtime, engine.model) && !disposeNxThreeGroup(engine.model) && !disposeCatiaThreeGroup(engine.model) && !disposeFusionThreeGroup(runtime, engine.model) && !disposeDemo3DModel(engine.model)) InventorThree.disposeInventorThreeGroup?.(engine.model);
           for (const url of engine.objectUrls ?? []) URL.revokeObjectURL(url);
           engine.objectUrls = [];
           engine.model = null;
@@ -1031,47 +1040,28 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           };
         }
 
-        // Creo and Solid Edge both use .asm. Creo PSB files were claimed
-        // above; Solid Edge documents use the Compound File Binary signature.
-        const isCompoundFile = (prefix: Uint8Array) => prefix.length >= 8
-          && [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1].every((value, index) => prefix[index] === value);
-        const solidEdgeDocumentsByPath = new Map<string, any>();
-        const solidEdgeRootOptions: RootOption[] = [];
-        const addSolidEdgeDocument = (preferredPath: string, document: any) => {
-          let path = preferredPath.replace(/\\/g, "/");
-          let suffix = 2;
-          while (solidEdgeDocumentsByPath.has(path.toLocaleLowerCase())) path = `${suffix++}/${preferredPath.replace(/\\/g, "/")}`;
-          solidEdgeDocumentsByPath.set(path.toLocaleLowerCase(), document);
-          solidEdgeRootOptions.push({ path, label: path, kind: `Solid Edge ${document.kind === "sheet-metal" ? "sheet-metal part" : document.kind}` });
-        };
+        // Creo and Solid Edge both use .asm. The Solid Edge workspace validates
+        // each candidate's native CFB signature and leaves Creo PSB files alone.
         const selectedSolidEdgeCandidates = files.filter((file) => ["par", "psm", "asm", "dft"].includes(extension(file.name)) && !creoSelectedFiles.has(file));
         const archiveSolidEdgeCandidates = sharedZipInventory.filter((item: any) => ["par", "psm", "asm", "dft"].includes(extension(item.path)) && !creoArchiveEntryPaths.has(item.path.toLocaleLowerCase()));
         if (selectedSolidEdgeCandidates.length || archiveSolidEdgeCandidates.length) {
-          setStatus("Reading Siemens Solid Edge documents…");
+          setStatus("Indexing Siemens Solid Edge workspace…");
           setProgress(24);
-          for (const file of selectedSolidEdgeCandidates) {
-            const prefix = new Uint8Array(await file.slice(0, 8).arrayBuffer());
-            if (!isCompoundFile(prefix)) continue;
-            const path = filePath(file);
-            addSolidEdgeDocument(path, await SolidEdge.parseSolidEdgeDocument(file, { path, levelOfDetail: "high" }));
-          }
-          for (const entry of archiveSolidEdgeCandidates) {
-            const prefix = await readSharedZipEntryPrefix(entry.path, 8);
-            if (!isCompoundFile(prefix)) continue;
-            addSolidEdgeDocument(entry.path, await SolidEdge.parseSolidEdgeDocument(
-              await readSharedZipEntry(entry.path),
-              { path: entry.path, levelOfDetail: "high" },
-            ));
-          }
+          const provider = sharedZipProvider ? {
+            list: async () => sharedZipInventory,
+            open: async (path: string) => sharedZipProvider.open(path),
+          } : new SolidEdge.BrowserFileProvider(files);
+          solidEdgeWorkspace = await SolidEdge.openSolidEdgeWorkspace(provider);
         }
+        const solidEdgeRootOptions: RootOption[] = (solidEdgeWorkspace?.documents ?? []).map((item: any) => {
+          const kind = extension(item.path) === "asm" ? "assembly" : extension(item.path) === "psm" ? "sheet-metal part" : extension(item.path) === "dft" ? "draft" : "part";
+          return { path: item.path, label: item.path, kind: `Solid Edge ${kind}` };
+        });
         solidEdgeRootOptions.sort((left, right) => {
-          const priority = (item: RootOption) => {
-            const document = solidEdgeDocumentsByPath.get(item.path.toLocaleLowerCase());
-            const kind = document?.kind;
-            return (document?.meshes?.length ? 0 : 10) + (kind === "assembly" ? 0 : kind === "part" || kind === "sheet-metal" ? 1 : kind === "draft" ? 2 : 3);
-          };
+          const priority = (item: RootOption) => extension(item.path) === "asm" ? 0 : extension(item.path) === "par" ? 1 : extension(item.path) === "psm" ? 2 : 3;
           return priority(left) - priority(right) || left.path.localeCompare(right.path, undefined, { numeric: true });
         });
+        const solidEdgeDocumentPaths = new Set(solidEdgeRootOptions.map((item) => item.path.toLocaleLowerCase()));
 
         let openSolidEdgeRoot: ((path: string) => Promise<void>) | undefined;
         if (solidEdgeRootOptions.length) {
@@ -1082,23 +1072,35 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
             const controller = new AbortController();
             rootController = controller;
             const isCurrent = () => !disposed && !controller.signal.aborted && generation === rootGeneration;
-            const document = solidEdgeDocumentsByPath.get(path.toLocaleLowerCase());
-            if (!document) throw new Error(`The Solid Edge document ${path} is unavailable.`);
+            if (!solidEdgeWorkspace || !solidEdgeDocumentPaths.has(path.toLocaleLowerCase())) throw new Error(`The Solid Edge document ${path} is unavailable.`);
             setActiveRoot(path);
             setTree(null);
             clearSelection();
             setError(null);
-            setStatus(`Preparing Solid Edge geometry for ${path}…`);
-            setProgress(74);
+            setStatus(`Reading Solid Edge document ${path}…`);
+            setProgress(48);
             releaseModel();
+            const document = await solidEdgeWorkspace.openDocument(path, {
+              levelOfDetail: "high",
+              maxConcurrency: 2,
+              signal: controller.signal,
+              onProgress: (event: any) => {
+                if (!isCurrent()) return;
+                const ratio = event.total ? event.completed / event.total : 0;
+                setProgress(Math.min(80, 48 + ratio * 32));
+                setStatus(event.message || `Reading Solid Edge document ${path}…`);
+              },
+            });
+            if (!isCurrent()) return;
             const triangleCount = document.meshes.reduce((total: number, mesh: any) => total + mesh.indices.length / 3, 0);
             if (!triangleCount) {
               const detail = document.diagnostics?.find((item: any) => item.severity !== "info")?.message;
               throw new Error(detail ?? `No saved Solid Edge display mesh was decoded from ${path}.`);
             }
-            const model = createSolidEdgeThreeGroup(runtime, document, path);
+            setStatus("Preparing Solid Edge materials and geometry…");
+            const model = await createSolidEdgeThreeGroup(runtime, document, path);
             if (!isCurrent()) {
-              disposeSolidEdgeThreeGroup(model);
+              disposeSolidEdgeThreeGroup(runtime, model);
               return;
             }
             setProgress(88);
@@ -1649,7 +1651,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
             if (!openCreoRoot) throw new Error(`The Creo workspace for ${path} is unavailable.`);
             return openCreoRoot(path);
           }
-          if (solidEdgeDocumentsByPath.has(path.toLocaleLowerCase())) {
+          if (solidEdgeDocumentPaths.has(path.toLocaleLowerCase())) {
             if (!openSolidEdgeRoot) throw new Error(`The Solid Edge workspace for ${path} is unavailable.`);
             return openSolidEdgeRoot(path);
           }
@@ -1705,6 +1707,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
       cancelAnimationFrame(animation);
       resizeObserver?.disconnect();
       workspace?.close?.().catch(console.warn);
+      solidEdgeWorkspace?.close?.().catch(console.warn);
       for (const snapshot of fusionSnapshots) snapshot.close?.().catch(console.warn);
       const engine = engineRef.current;
       if (engine) {

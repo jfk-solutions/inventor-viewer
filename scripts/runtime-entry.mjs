@@ -40,6 +40,7 @@ import * as Fusion from "../../fusion-file-format/dist/index.js";
 import * as FusionThree from "../../fusion-file-format/dist/three/index.js";
 import * as Creo from "../../creo-file-format/dist/index.js";
 import * as SolidEdge from "../../solidedge-file-format/dist/index.js";
+import * as SolidEdgeThree from "../../solidedge-file-format/dist/three/index.js";
 import * as SolidWorks from "../../solidworks-file-format/dist/index.js";
 import * as SolidWorksThree from "../../solidworks-file-format/dist/three/index.js";
 import * as Acad from "@node-projects/acad-ts";
@@ -64,5 +65,5 @@ export {
   LDrawLoader, LDrawConditionalLineMaterial, MD2Loader, MTLLoader, OBJLoader,
   PCDLoader, PLYLoader, Rhino3dmLoader, STLLoader, TDSLoader, TGALoader, ThreeMFLoader, USDLoader,
   VOXLoader, buildVOXMesh, VRMLLoader, VTKLoader, XYZLoader, MeshoptDecoder,
-  Inventor, InventorThree, InventorStep, Nx, Catia, CatiaV4, Fusion, FusionThree, Creo, SolidEdge, SolidWorks, SolidWorksThree, Acad, loadOpenCascade,
+  Inventor, InventorThree, InventorStep, Nx, Catia, CatiaV4, Fusion, FusionThree, Creo, SolidEdge, SolidEdgeThree, SolidWorks, SolidWorksThree, Acad, loadOpenCascade,
 };

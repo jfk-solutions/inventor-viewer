@@ -15,9 +15,9 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.idw` | Inventor drawings and drawing display geometry |
 | `.ipn` | Inventor presentations |
 | `.ide` | Inventor iFeature documents |
-| `.prt` | PTC Creo parts with persisted display strips or saved-preview fallback, and Siemens NX parts, assemblies and drawings with embedded JT 9.x display geometry; byte signatures select the correct reader |
-| `.par`, `.psm` | Solid Edge parts and sheet-metal parts with native saved display-cache tessellation, model bounds, Parasolid payload metadata and parser diagnostics |
-| `.asm` | Solid Edge or Creo assemblies; native CFB/PSB signatures select the reader, with saved display geometry rendered where the source document contains it |
+| `.prt` | PTC Creo parts with persisted display strips or saved-preview fallback, and Siemens NX parts, assemblies and drawings with embedded JT 9.x scene geometry, highest-detail LOD selection, transforms, colors, materials, textures and metadata; byte signatures select the correct reader |
+| `.par`, `.psm` | Solid Edge parts and sheet-metal parts with native display-cache tessellation, styles, properties, saved views, feature names, model bounds and Parasolid payload metadata |
+| `.asm` | Solid Edge or Creo assemblies; native CFB/PSB signatures select the reader, with Solid Edge occurrence transforms, references and native child appearances resolved from the workspace |
 | `.dft` | Solid Edge draft documents with saved display geometry where present and explicit diagnostics otherwise |
 | `.drw`, `.sec` | Creo drawings and Sketcher sections in the native `#UGC:2` PSB container, including numeric filename revisions |
 | `.xzip` | Siemens NX ZIP/XZIP collections with discoverable PRT documents and sibling-reference resolution |
@@ -57,13 +57,13 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.md2` | Quake II models with morph-target animation clips |
 | `.demo3d`, `.raw3d` | Demo3D/Emulate3D projects and render-ready RAW3D scenes, loaded through the lazy `@jfk-solutions/demo3d-file-format` integration |
 
-For assemblies, package the IAM, Creo ASM/PRT, NX PRT, CATProduct or SLDASM and all referenced documents into one ZIP while retaining their relative paths. The viewer detects the workspace type, discovers candidate root documents and opens the assembly first. Creo, NX, CATIA and other workspace files may also be selected together. Missing references remain visible through model metadata and diagnostics; the viewer never attempts to access Autodesk Vault.
+For assemblies, package the IAM, Solid Edge ASM/PAR/PSM, Creo ASM/PRT, NX PRT, CATProduct or SLDASM and all referenced documents into one ZIP while retaining their relative paths. The viewer detects the workspace type, discovers candidate root documents and opens the assembly first. Solid Edge, Creo, NX, CATIA and other workspace files may also be selected together. Missing references remain visible through model metadata and diagnostics; the viewer never attempts to access Autodesk Vault.
 
 Creo support reads native Creo Parametric and legacy Pro/ENGINEER `#UGC:2` PSB files through the browser-first `creo-file-format` reader. Complete persisted display strips render as 3D meshes; when those are unavailable, the explicit saved preview is shown and parser diagnostics explain the missing analytic geometry. Creo and Siemens NX `.prt` files are routed by their native byte signatures rather than by extension.
 
-Solid Edge support reads native Compound File Binary `.par`, `.psm`, `.asm` and `.dft` documents through the browser-first `solidedge-file-format` reader. Saved display-cache tessellation is rendered locally in metre-based model coordinates, and ZIP workspaces expose every contained Solid Edge document as a selectable root. The current reader does not yet resolve assembly occurrences/transforms, display materials or exact Parasolid B-Rep; documents without a saved display mesh report that limitation instead of substituting invented geometry. Solid Edge and Creo `.asm` files are routed by native container signatures.
+Solid Edge support reads native Compound File Binary `.par`, `.psm`, `.asm` and `.dft` documents through the browser-first `solidedge-file-format` reader. The current workspace API resolves assembly references and exact saved occurrence transforms, applies native document and record-level display styles, and exposes properties, saved views, feature names, cache records, persistent IDs and parser diagnostics. Native triangle selections retain their display-record and persistent-ID provenance. Exact Parasolid B-Rep and DFT sheet graphics are not yet decoded; documents without a supported saved display mesh report that limitation instead of substituting invented geometry. Solid Edge and Creo `.asm` files are routed by native container signatures.
 
-Siemens NX support reads modern SPLM and legacy Compound File Binary PRT containers and decodes embedded JT 9.x display meshes locally. Reference-only assemblies resolve against sibling PRT files; until native occurrence transforms are decoded, those components use the reader's explicitly diagnosed surrogate layout. JT 10.x and exact Parasolid B-Rep are not currently supported.
+Siemens NX support reads modern SPLM and legacy Compound File Binary PRT containers and decodes embedded JT 9.x display scenes locally. The viewer selects the highest-detail Range LOD alternative, preserves repeated scene paths and geometric transforms, and applies JT vertex colors, materials, native face colors and browser-decodable base textures. Part attributes, physical properties, previews and detailed diagnostics are exposed as metadata. Reference-only assemblies resolve against sibling PRT files; until native NX assembly occurrence transforms are decoded, those components use the reader's explicitly diagnosed surrogate layout. JT 10.x and exact Parasolid B-Rep are not currently supported.
 
 Fusion F3D and F3Z files are decoded by the browser-first `fusion-file-format` reader. The viewer renders validated planar, cylindrical, conical, toroidal and trimmed NURBS faces from native ShapeManager payloads. Unsupported faces are reported in diagnostics and are not replaced with invented geometry; F3Z and generic ZIP snapshots expose each nested F3D document as a selectable root.
 
@@ -177,8 +177,8 @@ In the GitHub repository, open **Settings → Pages** and set **Source** to **Gi
 - Three.js for WebGL rendering and camera interaction
 - [`inventor-file-format`](https://github.com/JFK-Solutions/inventor-file-format) for Inventor parsing, workspaces, ZIP providers and Three.js scene conversion
 - `creo-file-format` for PTC Creo / Pro/ENGINEER PSB detection, parsing, display meshes, previews and ZIP workspaces
-- `solidedge-file-format` for Solid Edge CFB parsing, saved display-cache meshes, Parasolid payload metadata and ZIP document discovery
-- `simaticnx-file-format` for Siemens NX PRT/SPLM/CFB parsing, embedded JT display geometry and multi-file reference resolution
+- `solidedge-file-format` and its optional Three.js adapter for Solid Edge CFB parsing, transformed assembly previews, reference resolution, native styles, saved display-cache meshes, selection provenance, document metadata and ZIP workspaces
+- `simaticnx-file-format` for Siemens NX PRT/SPLM/CFB parsing, JT scene graphs, LODs, placements, materials, colors, textures, metadata and multi-file reference resolution
 - `fusion-file-format` for F3D/F3Z parsing, native ShapeManager tessellation and snapshot discovery
 - `catia-file-format` for isolated CATIA V4 MODEL/STEP-companion support plus CATIA V5 parsing, ZIP/multi-file workspaces, renderer-neutral scene creation and local Three.js conversion
 - `solidworks-file-format` for browser-native SolidWorks parsing, ZIP workspaces, saved tessellation and Three.js scene conversion

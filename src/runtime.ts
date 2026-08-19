@@ -44,6 +44,7 @@ export type CadRuntime = {
   FusionThree: any;
   Creo: any;
   SolidEdge: any;
+  SolidEdgeThree: any;
   SolidWorks: any;
   SolidWorksThree: any;
   Acad: any;
