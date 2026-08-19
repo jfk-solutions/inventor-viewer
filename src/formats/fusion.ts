@@ -1,7 +1,9 @@
 import type { FusionRenderScene } from "../../../fusion-file-format/dist/index.js";
 import {
+  createFusionThreeFaceHighlight as createLibraryFusionThreeFaceHighlight,
   createFusionThreeGroup as createLibraryFusionThreeGroup,
   disposeFusionThreeGroup as disposeLibraryFusionThreeGroup,
+  resolveFusionThreeFaceHit,
 } from "../../../fusion-file-format/dist/three/index.js";
 import type { CadRuntime } from "../runtime";
 
@@ -43,4 +45,10 @@ export function createFusionThreeGroup(
 export function disposeFusionThreeGroup(model: object) {
   if (!(model as any)?.userData?.fusionDocument) return false;
   return disposeLibraryFusionThreeGroup(model);
+}
+
+export { resolveFusionThreeFaceHit };
+
+export function createFusionThreeFaceHighlight(runtime: CadRuntime, intersection: { object?: any; faceIndex?: number }) {
+  return createLibraryFusionThreeFaceHighlight(intersection, { three: runtime.THREE });
 }

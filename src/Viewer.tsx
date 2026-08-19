@@ -31,7 +31,7 @@ import { loadCadRuntime, type CadRuntime } from "./runtime";
 import { ACCEPTED_FILE_TYPES, fileExtension, isDirectModelFile, isResourceFile } from "./formats";
 import { loadOcctModel } from "./formats/step";
 import { createCatiaThreeGroup, disposeCatiaThreeGroup } from "./formats/catia";
-import { createFusionThreeGroup, disposeFusionThreeGroup } from "./formats/fusion";
+import { createFusionThreeFaceHighlight, createFusionThreeGroup, disposeFusionThreeGroup, resolveFusionThreeFaceHit } from "./formats/fusion";
 import { createNxThreeGroup, disposeNxThreeGroup } from "./formats/nx";
 
 type ViewerProps = {
@@ -174,6 +174,12 @@ function objectProperties(object: any, hit?: any): PropertySection[] {
   const selection = hit ? [
     { name: "Distance", value: summary(hit.distance) },
     { name: "Face index", value: summary(hit.faceIndex) },
+    ...(hit.fusionFace ? [
+      { name: "Native face", value: summary(hit.fusionFace.nativeFace) },
+      { name: "Native surface", value: summary(hit.fusionFace.nativeSurface) },
+      { name: "Surface type", value: summary(hit.fusionFace.geometry) },
+      { name: "Material ID", value: summary(hit.fusionFace.materialId) },
+    ] : []),
     { name: "Point", value: summary(hit.point?.toArray?.()) },
   ] : [];
   return [
@@ -644,11 +650,13 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
       engine.helper.geometry?.dispose?.();
       engine.helper.material?.dispose?.();
     }
-    engine.helper = new engine.THREE.BoxHelper(object, 0xf2a900);
-    engine.helper.renderOrder = 20;
+    const fusionFaceHit = hit ? resolveFusionThreeFaceHit(hit) : undefined;
+    engine.helper = fusionFaceHit ? createFusionThreeFaceHighlight(engine, hit) : undefined;
+    engine.helper ??= new engine.THREE.BoxHelper(object, 0xf2a900);
+    engine.helper.renderOrder = fusionFaceHit ? 10_000 : 20;
     engine.scene.add(engine.helper);
     setSelected(object);
-    setProperties(objectProperties(object, hit));
+    setProperties(objectProperties(object, fusionFaceHit ? { ...hit, fusionFace: fusionFaceHit.face } : hit));
   }, []);
 
   const clearSelection = useCallback(() => {
