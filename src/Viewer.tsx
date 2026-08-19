@@ -655,7 +655,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
       engine.helper.material?.dispose?.();
     }
     const fusionFaceHit = hit ? resolveFusionThreeFaceHit(engine.runtime, hit) : undefined;
-    engine.helper = fusionFaceHit ? createFusionThreeFaceHighlight(engine, hit) : undefined;
+    engine.helper = fusionFaceHit ? createFusionThreeFaceHighlight(engine.runtime, hit) : undefined;
     engine.helper ??= new engine.THREE.BoxHelper(object, 0xf2a900);
     engine.helper.renderOrder = fusionFaceHit ? 10_000 : 20;
     engine.scene.add(engine.helper);
