@@ -800,7 +800,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
               linear.updateProjectionMatrix();
             }
           }
-          if (engine.helper) engine.helper.update();
+          engine.helper?.update?.();
           renderer.render(scene, engine.camera);
           animation = requestAnimationFrame(animate);
         };
