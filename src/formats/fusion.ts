@@ -1,19 +1,12 @@
-import type { FusionRenderScene } from "../../../fusion-file-format/dist/index.js";
-import {
-  createFusionThreeFaceHighlight as createLibraryFusionThreeFaceHighlight,
-  createFusionThreeGroup as createLibraryFusionThreeGroup,
-  disposeFusionThreeGroup as disposeLibraryFusionThreeGroup,
-  resolveFusionThreeFaceHit,
-} from "../../../fusion-file-format/dist/three/index.js";
 import type { CadRuntime } from "../runtime";
 
 export function createFusionThreeGroup(
   runtime: CadRuntime,
-  scene: FusionRenderScene,
+  scene: any,
   document: any,
   sourcePath = document.name,
 ) {
-  const model = createLibraryFusionThreeGroup(scene, {
+  const model = runtime.FusionThree.createFusionThreeGroup(scene, {
     three: runtime.THREE,
     name: document.name,
     useMaterials: true,
@@ -37,18 +30,20 @@ export function createFusionThreeGroup(
     textures: scene.textures?.length ?? 0,
     unresolvedMaterialIds: [...(scene.unresolvedMaterialIds ?? [])],
     unresolvedTextureIds: [...(scene.unresolvedTextureIds ?? [])],
-    diagnostics: scene.diagnostics.map((item) => `${item.code}: ${item.message}`),
+    diagnostics: scene.diagnostics.map((item: any) => `${item.code}: ${item.message}`),
   };
   return model;
 }
 
-export function disposeFusionThreeGroup(model: object) {
+export function disposeFusionThreeGroup(runtime: CadRuntime, model: object) {
   if (!(model as any)?.userData?.fusionDocument) return false;
-  return disposeLibraryFusionThreeGroup(model);
+  return runtime.FusionThree.disposeFusionThreeGroup(model);
 }
 
-export { resolveFusionThreeFaceHit };
+export function resolveFusionThreeFaceHit(runtime: CadRuntime, intersection: { object?: any; faceIndex?: number }) {
+  return runtime.FusionThree.resolveFusionThreeFaceHit(intersection);
+}
 
 export function createFusionThreeFaceHighlight(runtime: CadRuntime, intersection: { object?: any; faceIndex?: number }) {
-  return createLibraryFusionThreeFaceHighlight(intersection, { three: runtime.THREE });
+  return runtime.FusionThree.createFusionThreeFaceHighlight(intersection, { three: runtime.THREE });
 }

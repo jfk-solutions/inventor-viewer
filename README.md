@@ -1,6 +1,6 @@
 # Native CAD Viewer
 
-A modern, static 3D viewer by JFK Solutions for Autodesk Inventor, Siemens NX, Fusion, CATIA V4/V5, SolidWorks, AutoCAD, Sweet Home 3D, Demo3D and common Three.js model formats. Files are parsed and rendered entirely in the browser: there is no upload service, no account and no Vault connection.
+A modern, static 3D viewer by JFK Solutions for Autodesk Inventor, Siemens Solid Edge, PTC Creo, Siemens NX, Fusion, CATIA V4/V5, SolidWorks, AutoCAD, Sweet Home 3D, Demo3D and common Three.js model formats. Files are parsed and rendered entirely in the browser: there is no upload service, no account and no Vault connection.
 
 The repository is designed for GitHub Pages. The complete minified CAD runtime is checked in at `public/vendor/cad-viewer-runtime.min.js`, so a clean Pages build does not need unpublished packages or the sibling development repositories.
 
@@ -15,7 +15,11 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.idw` | Inventor drawings and drawing display geometry |
 | `.ipn` | Inventor presentations |
 | `.ide` | Inventor iFeature documents |
-| `.prt` | Siemens NX parts, assemblies and drawings with embedded JT 9.x display geometry, metadata, references, diagnostics and preview fallback |
+| `.prt` | PTC Creo parts with persisted display strips or saved-preview fallback, and Siemens NX parts, assemblies and drawings with embedded JT 9.x display geometry; byte signatures select the correct reader |
+| `.par`, `.psm` | Solid Edge parts and sheet-metal parts with native saved display-cache tessellation, model bounds, Parasolid payload metadata and parser diagnostics |
+| `.asm` | Solid Edge or Creo assemblies; native CFB/PSB signatures select the reader, with saved display geometry rendered where the source document contains it |
+| `.dft` | Solid Edge draft documents with saved display geometry where present and explicit diagnostics otherwise |
+| `.drw`, `.sec` | Creo drawings and Sketcher sections in the native `#UGC:2` PSB container, including numeric filename revisions |
 | `.xzip` | Siemens NX ZIP/XZIP collections with discoverable PRT documents and sibling-reference resolution |
 | `.f3d` | Fusion design archives with validated native ShapeManager face tessellation and model metadata |
 | `.f3z` | Fusion distributed-design archives with discoverable nested F3D documents |
@@ -28,8 +32,8 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.slddrw` | SolidWorks drawings with saved display geometry or embedded preview fallback |
 | `.dwg` | AutoCAD model space through `@node-projects/acad-ts` |
 | `.dxf` | ASCII and binary DXF; common line, arc, circle, polyline, point and 3D-face entities |
-| `.step`, `.stp` | STEP parts and assemblies, tessellated locally through the lazy-loaded OpenCascade kernel |
-| `.iges`, `.igs`, `.brep`, `.brp` | IGES exchange models and OpenCascade BREP geometry through the same lazy OpenCascade kernel |
+| `.step`, `.stp` | STEP parts and assemblies parsed and tessellated locally in a Web Worker by the bundled dependency-free `step-file-format` library |
+| `.iges`, `.igs`, `.brep`, `.brp` | IGES exchange models and OpenCascade BREP geometry through the lazy-loaded OpenCascade kernel |
 | `.3dm` | Rhino models through Three.js and the format-triggered `rhino3dm` worker/WASM runtime |
 | `.fcstd` | FreeCAD Part/PartDesign BREP objects, placed `App::Link` instances, saved colors/transparency and visible line-segment sketches; archive decoding and OpenCascade are loaded only for FCStd files |
 | `.ifc` | IFC building geometry and element metadata through format-triggered `web-ifc` and its local WASM runtime |
@@ -53,9 +57,13 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.md2` | Quake II models with morph-target animation clips |
 | `.demo3d`, `.raw3d` | Demo3D/Emulate3D projects and render-ready RAW3D scenes, loaded through the lazy `@jfk-solutions/demo3d-file-format` integration |
 
-For assemblies, package the IAM, NX PRT, CATProduct or SLDASM and all referenced documents into one ZIP while retaining their relative paths. The viewer detects the workspace type, discovers candidate root documents and opens the assembly first. NX, CATIA and other workspace files may also be selected together. Missing references remain visible through model metadata and diagnostics; the viewer never attempts to access Autodesk Vault.
+For assemblies, package the IAM, Creo ASM/PRT, NX PRT, CATProduct or SLDASM and all referenced documents into one ZIP while retaining their relative paths. The viewer detects the workspace type, discovers candidate root documents and opens the assembly first. Creo, NX, CATIA and other workspace files may also be selected together. Missing references remain visible through model metadata and diagnostics; the viewer never attempts to access Autodesk Vault.
 
-Siemens NX support reads modern SPLM and legacy Compound File Binary PRT containers and decodes embedded JT 9.x display meshes locally. Reference-only assemblies resolve against sibling PRT files; until native occurrence transforms are decoded, those components use the reader's explicitly diagnosed surrogate layout. JT 10.x, exact Parasolid B-Rep and Creo PRT files are not currently supported.
+Creo support reads native Creo Parametric and legacy Pro/ENGINEER `#UGC:2` PSB files through the browser-first `creo-file-format` reader. Complete persisted display strips render as 3D meshes; when those are unavailable, the explicit saved preview is shown and parser diagnostics explain the missing analytic geometry. Creo and Siemens NX `.prt` files are routed by their native byte signatures rather than by extension.
+
+Solid Edge support reads native Compound File Binary `.par`, `.psm`, `.asm` and `.dft` documents through the browser-first `solidedge-file-format` reader. Saved display-cache tessellation is rendered locally in metre-based model coordinates, and ZIP workspaces expose every contained Solid Edge document as a selectable root. The current reader does not yet resolve assembly occurrences/transforms, display materials or exact Parasolid B-Rep; documents without a saved display mesh report that limitation instead of substituting invented geometry. Solid Edge and Creo `.asm` files are routed by native container signatures.
+
+Siemens NX support reads modern SPLM and legacy Compound File Binary PRT containers and decodes embedded JT 9.x display meshes locally. Reference-only assemblies resolve against sibling PRT files; until native occurrence transforms are decoded, those components use the reader's explicitly diagnosed surrogate layout. JT 10.x and exact Parasolid B-Rep are not currently supported.
 
 Fusion F3D and F3Z files are decoded by the browser-first `fusion-file-format` reader. The viewer renders validated planar, cylindrical, conical, toroidal and trimmed NURBS faces from native ShapeManager payloads. Unsupported faces are reported in diagnostics and are not replaced with invented geometry; F3Z and generic ZIP snapshots expose each nested F3D document as a selectable root.
 
@@ -102,6 +110,9 @@ Normal application builds use the committed runtime and therefore work from a st
 
 ```text
 C:\Data\Git\JFK-Solutions\inventor-file-format
+C:\Data\Git\JFK-Solutions\step-file-format
+C:\Data\Git\JFK-Solutions\creo-file-format
+C:\Data\Git\JFK-Solutions\solidedge-file-format
 C:\Data\Git\JFK-Solutions\simaticnx-file-format
 C:\Data\Git\JFK-Solutions\catia-file-format
 C:\Data\Git\JFK-Solutions\solidworks-file-format
@@ -111,6 +122,18 @@ Build the native CAD libraries, then regenerate the browser bundle:
 
 ```bash
 cd C:/Data/Git/JFK-Solutions/inventor-file-format
+npm install
+npm run build
+
+cd C:/Data/Git/JFK-Solutions/step-file-format
+npm install
+npm run build
+
+cd C:/Data/Git/JFK-Solutions/creo-file-format
+npm install
+npm run build
+
+cd C:/Data/Git/JFK-Solutions/solidedge-file-format
 npm install
 npm run build
 
@@ -132,7 +155,7 @@ npm run bundle:vendor
 npm run build
 ```
 
-`scripts/runtime-entry.mjs` combines Inventor, Siemens NX, Fusion, CATIA and SolidWorks parsing, their viewer adapters, the npm-hosted `@node-projects/acad-ts` package, Three.js, OrbitControls, model loaders and exporters. `scripts/build-vendor.mjs` creates the minified runtime, copies its license notices and the BZip2, OpenCascade, Rhino and IFC browser assets, and updates `src/runtime-version.ts` with its content hash. The unpublished Siemens NX, Fusion and CATIA libraries are compiled directly from sibling repositories into the committed minified runtime, so production builds remain standalone. OpenCascade, Rhino, IFC and FCStd archive code remain format-triggered rather than entering the initial application payload. Commit the generated runtime, decoder directories and version file whenever their source packages change; the hash prevents browsers and GitHub Pages from reusing an older CAD runtime.
+`scripts/runtime-entry.mjs` combines Inventor, Solid Edge, PTC Creo, Siemens NX, Fusion, CATIA and SolidWorks parsing, their viewer adapters, the npm-hosted `@node-projects/acad-ts` package, Three.js, OrbitControls, model loaders and exporters. `scripts/build-vendor.mjs` creates the minified runtime and dedicated minified STEP worker, copies their license notices and the BZip2, OpenCascade, Rhino and IFC browser assets, and updates `src/runtime-version.ts` with their combined content hash. The unpublished STEP, Solid Edge, Creo, Siemens NX, Fusion and CATIA libraries are compiled directly from sibling repositories into committed minified assets, so production builds remain standalone. OpenCascade, Rhino, IFC and FCStd archive code remain format-triggered rather than entering the initial application payload. Commit the generated runtime, STEP worker, decoder directories and version file whenever their source packages change; the hash prevents browsers and GitHub Pages from reusing older CAD code.
 
 ## GitHub Pages
 
@@ -153,13 +176,16 @@ In the GitHub repository, open **Settings → Pages** and set **Source** to **Gi
 - React + TypeScript + Vite for the static application
 - Three.js for WebGL rendering and camera interaction
 - [`inventor-file-format`](https://github.com/JFK-Solutions/inventor-file-format) for Inventor parsing, workspaces, ZIP providers and Three.js scene conversion
+- `creo-file-format` for PTC Creo / Pro/ENGINEER PSB detection, parsing, display meshes, previews and ZIP workspaces
+- `solidedge-file-format` for Solid Edge CFB parsing, saved display-cache meshes, Parasolid payload metadata and ZIP document discovery
 - `simaticnx-file-format` for Siemens NX PRT/SPLM/CFB parsing, embedded JT display geometry and multi-file reference resolution
 - `fusion-file-format` for F3D/F3Z parsing, native ShapeManager tessellation and snapshot discovery
 - `catia-file-format` for isolated CATIA V4 MODEL/STEP-companion support plus CATIA V5 parsing, ZIP/multi-file workspaces, renderer-neutral scene creation and local Three.js conversion
 - `solidworks-file-format` for browser-native SolidWorks parsing, ZIP workspaces, saved tessellation and Three.js scene conversion
 - [`acad-ts`](https://github.com/node-projects/acad-ts) for DWG/DXF parsing
 - [`demo3d-file-format`](https://github.com/JFK-Solutions/demo3d-file-format) for lazily loaded Demo3D/RAW3D parsing and Three.js scene conversion
-- OpenCascade.js for lazily tessellated STEP, IGES, BREP and embedded FreeCAD shapes
+- `step-file-format` for dependency-free STEP parsing and tessellation in a dedicated Web Worker
+- OpenCascade.js for lazily tessellated IGES, BREP and embedded FreeCAD shapes
 - `rhino3dm`, `web-ifc` and `fflate` as isolated format-triggered runtimes for 3DM, IFC and FCStd respectively
 
 See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for bundled dependency licenses.

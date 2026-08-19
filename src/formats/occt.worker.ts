@@ -1,4 +1,4 @@
-type OcctFormat = "step" | "iges" | "brep";
+type OcctFormat = "iges" | "brep";
 
 type LoadRequest = {
   type: "load";
@@ -86,22 +86,6 @@ function readDocument(
   resources: any[],
   timings: Record<string, number>,
 ) {
-  if (format === "step") {
-    oc.STEPControl_Controller.Init();
-    oc.STEPCAFControl_Controller.Init();
-    const reader = own(resources, new oc.STEPCAFControl_Reader_1());
-    configureReader(reader);
-    sendProgress(id, "Reading STEP entities…", 52);
-    let started = performance.now();
-    if (!statusDone(oc, reader.ReadFile(inputPath))) throw new Error("OpenCascade could not read this STEP file.");
-    timings.read = performance.now() - started;
-    sendProgress(id, "Building STEP assembly…", 61);
-    started = performance.now();
-    if (!reader.Transfer_1(documentHandle, progressRange)) throw new Error("OpenCascade could not transfer the STEP assembly.");
-    timings.transfer = performance.now() - started;
-    return;
-  }
-
   if (format === "iges") {
     oc.IGESControl_Controller.Init();
     const reader = own(resources, new oc.IGESCAFControl_Reader_1());
@@ -167,7 +151,7 @@ function tessellateDocument(oc: any, document: any, resources: any[]) {
 
 async function loadModel(request: LoadRequest) {
   const { id, format } = request;
-  const displayName = format === "step" ? "STEP" : format === "iges" ? "IGES" : "BREP";
+  const displayName = format === "iges" ? "IGES" : "BREP";
   const timings: Record<string, number> = {};
   sendProgress(id, `Loading ${displayName} engine…`, 44);
   let started = performance.now();

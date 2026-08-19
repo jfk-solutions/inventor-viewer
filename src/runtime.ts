@@ -41,6 +41,9 @@ export type CadRuntime = {
   Catia: any;
   CatiaV4: any;
   Fusion: any;
+  FusionThree: any;
+  Creo: any;
+  SolidEdge: any;
   SolidWorks: any;
   SolidWorksThree: any;
   Acad: any;

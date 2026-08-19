@@ -33,6 +33,8 @@ import { loadOcctModel } from "./formats/step";
 import { createCatiaThreeGroup, disposeCatiaThreeGroup } from "./formats/catia";
 import { createFusionThreeFaceHighlight, createFusionThreeGroup, disposeFusionThreeGroup, resolveFusionThreeFaceHit } from "./formats/fusion";
 import { createNxThreeGroup, disposeNxThreeGroup } from "./formats/nx";
+import { createCreoThreeGroup, disposeCreoThreeGroup } from "./formats/creo";
+import { createSolidEdgeThreeGroup, disposeSolidEdgeThreeGroup } from "./formats/solidedge";
 
 type ViewerProps = {
   files: File[];
@@ -79,7 +81,9 @@ function extension(path: string) {
 function kindFor(path: string) {
   return ({
     iam: "Assembly", ipt: "Part", idw: "Drawing", ipn: "Presentation", ide: "iFeature",
-    prt: "Siemens NX part or assembly", xzip: "Siemens NX archive",
+    prt: "Siemens NX or PTC Creo part", xzip: "Siemens NX archive",
+    asm: "Creo or Solid Edge assembly", drw: "Creo drawing", sec: "Creo section",
+    par: "Solid Edge part", psm: "Solid Edge sheet-metal part", dft: "Solid Edge draft",
     catproduct: "CATIA assembly", catpart: "CATIA part", catshape: "CATIA shape", cgr: "CATIA graphical representation", model: "CATIA V4 MODEL",
     f3d: "Fusion design", f3z: "Fusion distributed design",
     sldasm: "SolidWorks assembly", sldprt: "SolidWorks part", slddrw: "SolidWorks drawing",
@@ -145,8 +149,8 @@ function objectProperties(object: any, hit?: any): PropertySection[] {
   if (!object) return [];
   object.updateWorldMatrix?.(true, false);
   const position = object.getWorldPosition ? object.getWorldPosition(object.position.clone()) : object.position;
-  const metadata = object.userData?.inventor ?? object.userData?.nx ?? object.userData?.solidworks ?? object.userData?.catia ?? object.userData?.fusion ?? object.userData?.sweethome3d ?? object.userData?.raw3d ?? object.userData?.demo3d ?? {};
-  const metadataTitle = object.userData?.inventor ? "Inventor metadata" : object.userData?.nx ? "Siemens NX metadata" : object.userData?.solidworks ? "SolidWorks metadata" : object.userData?.catia ? "CATIA metadata" : object.userData?.fusion ? "Fusion metadata" : object.userData?.sweethome3d ? "Sweet Home 3D metadata" : object.userData?.raw3d ? "RAW3D metadata" : "Demo3D metadata";
+  const metadata = object.userData?.inventor ?? object.userData?.creo ?? object.userData?.solidedge ?? object.userData?.nx ?? object.userData?.solidworks ?? object.userData?.catia ?? object.userData?.fusion ?? object.userData?.sweethome3d ?? object.userData?.raw3d ?? object.userData?.demo3d ?? {};
+  const metadataTitle = object.userData?.inventor ? "Inventor metadata" : object.userData?.creo ? "Creo metadata" : object.userData?.solidedge ? "Solid Edge metadata" : object.userData?.nx ? "Siemens NX metadata" : object.userData?.solidworks ? "SolidWorks metadata" : object.userData?.catia ? "CATIA metadata" : object.userData?.fusion ? "Fusion metadata" : object.userData?.sweethome3d ? "Sweet Home 3D metadata" : object.userData?.raw3d ? "RAW3D metadata" : "Demo3D metadata";
   const primary = [
     { name: "Name", value: object.name || metadata.name || "Unnamed object" },
     { name: "Type", value: metadata.kind ? cleanName(metadata.kind) : object.type },
@@ -198,10 +202,10 @@ function IconForKind({ kind }: { kind: string }) {
 }
 
 function buildTree(object: any, prefix = "root", depth = 0): TreeItem {
-  const kind = cleanName(object.userData?.inventor?.kind ?? object.userData?.nx?.kind ?? object.userData?.solidworks?.kind ?? object.userData?.catia?.kind ?? object.userData?.sweethome3d?.kind ?? object.userData?.raw3d?.kind ?? object.userData?.demo3d?.kind ?? object.type ?? "Object");
+  const kind = cleanName(object.userData?.inventor?.kind ?? object.userData?.creo?.kind ?? object.userData?.solidedge?.kind ?? object.userData?.nx?.kind ?? object.userData?.solidworks?.kind ?? object.userData?.catia?.kind ?? object.userData?.sweethome3d?.kind ?? object.userData?.raw3d?.kind ?? object.userData?.demo3d?.kind ?? object.type ?? "Object");
   return {
     id: `${prefix}-${object.id}`,
-    label: object.name || object.userData?.inventor?.name || object.userData?.nx?.name || object.userData?.solidworks?.name || object.userData?.catia?.name || object.userData?.sweethome3d?.name || object.userData?.raw3d?.name || object.userData?.demo3d?.name || kind,
+    label: object.name || object.userData?.inventor?.name || object.userData?.creo?.name || object.userData?.solidedge?.name || object.userData?.nx?.name || object.userData?.solidworks?.name || object.userData?.catia?.name || object.userData?.sweethome3d?.name || object.userData?.raw3d?.name || object.userData?.demo3d?.name || kind,
     kind,
     object,
     children: depth > 7 ? [] : (object.children ?? [])
@@ -650,7 +654,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
       engine.helper.geometry?.dispose?.();
       engine.helper.material?.dispose?.();
     }
-    const fusionFaceHit = hit ? resolveFusionThreeFaceHit(hit) : undefined;
+    const fusionFaceHit = hit ? resolveFusionThreeFaceHit(engine.runtime, hit) : undefined;
     engine.helper = fusionFaceHit ? createFusionThreeFaceHighlight(engine, hit) : undefined;
     engine.helper ??= new engine.THREE.BoxHelper(object, 0xf2a900);
     engine.helper.renderOrder = fusionFaceHit ? 10_000 : 20;
@@ -692,7 +696,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         setProgress(10);
         const runtime = await loadCadRuntime();
         if (disposed) return;
-        const { THREE, OrbitControls, Inventor, InventorThree, Nx, Catia, CatiaV4, Fusion, SolidWorks, SolidWorksThree } = runtime;
+        const { THREE, OrbitControls, Inventor, InventorThree, Nx, Catia, CatiaV4, Fusion, Creo, SolidEdge, SolidWorks, SolidWorksThree } = runtime;
         const canvas = canvasRef.current!;
         const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: "high-performance" });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -886,7 +890,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           if (engine.model.userData?.solidworksDocument) {
             engine.model.userData.solidworksPreviewTexture?.dispose?.();
             SolidWorksThree.disposeSolidWorksThreeGroup?.(engine.model);
-          } else if (!disposeNxThreeGroup(engine.model) && !disposeCatiaThreeGroup(engine.model) && !disposeFusionThreeGroup(engine.model) && !disposeDemo3DModel(engine.model)) InventorThree.disposeInventorThreeGroup?.(engine.model);
+          } else if (!disposeCreoThreeGroup(engine.model) && !disposeSolidEdgeThreeGroup(engine.model) && !disposeNxThreeGroup(engine.model) && !disposeCatiaThreeGroup(engine.model) && !disposeFusionThreeGroup(runtime, engine.model) && !disposeDemo3DModel(engine.model)) InventorThree.disposeInventorThreeGroup?.(engine.model);
           for (const url of engine.objectUrls ?? []) URL.revokeObjectURL(url);
           engine.objectUrls = [];
           engine.model = null;
@@ -952,8 +956,158 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           finally { await source.close?.(); }
         };
 
-        const nxFiles = files.filter((file) => /\.(?:prt|xzip)$/i.test(file.name));
-        const nxArchiveEntries = sharedZipInventory.filter((item: any) => /\.prt$/i.test(item.path));
+        // Creo and Siemens NX both use .prt. Detect the native signature before
+        // assigning either reader so an extension never guesses the CAD system.
+        const creoSelectedFiles = new Set<File>();
+        const creoArchiveEntryPaths = new Set<string>();
+        const creoSources: any[] = [];
+        const selectedCreoCandidates = files.filter((file) => ["prt", "asm", "drw", "sec"].includes(extension(file.name)));
+        for (const file of selectedCreoCandidates) {
+          const prefix = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+          if (Creo.detectCreoInput(prefix) !== "creo-psb") continue;
+          creoSelectedFiles.add(file);
+          creoSources.push(file);
+        }
+        const archiveCreoCandidates = sharedZipInventory.filter((item: any) => ["prt", "asm", "drw", "sec"].includes(extension(item.path)));
+        for (const entry of archiveCreoCandidates) {
+          const prefix = await readSharedZipEntryPrefix(entry.path, 16);
+          if (Creo.detectCreoInput(prefix) !== "creo-psb") continue;
+          creoArchiveEntryPaths.add(entry.path.toLocaleLowerCase());
+          creoSources.push({ name: entry.path, source: await readSharedZipEntry(entry.path) });
+        }
+
+        let creoArchive: any;
+        if (creoSources.length) {
+          setStatus("Reading PTC Creo workspace…");
+          setProgress(22);
+          creoArchive = await Creo.openCreoFiles(creoSources);
+        }
+        const creoDocumentsByPath = new Map<string, any>();
+        const creoRootOptions: RootOption[] = [];
+        for (const item of creoArchive?.documents ?? []) {
+          let path = item.path.replace(/\\/g, "/");
+          let suffix = 2;
+          while (creoDocumentsByPath.has(path.toLocaleLowerCase())) path = `${suffix++}/${item.path.replace(/\\/g, "/")}`;
+          creoDocumentsByPath.set(path.toLocaleLowerCase(), item.document);
+          creoRootOptions.push({ path, label: path, kind: `Creo ${item.document.kind}` });
+        }
+        creoRootOptions.sort((left, right) => {
+          const priority = (item: RootOption) => /assembly/i.test(item.kind) ? 0 : /part/i.test(item.kind) ? 1 : /drawing/i.test(item.kind) ? 2 : 3;
+          return priority(left) - priority(right) || left.path.localeCompare(right.path, undefined, { numeric: true });
+        });
+
+        let openCreoRoot: ((path: string) => Promise<void>) | undefined;
+        if (creoRootOptions.length) {
+          openCreoRoot = async (path: string) => {
+            if (disposed) return;
+            const generation = ++rootGeneration;
+            rootController?.abort();
+            const controller = new AbortController();
+            rootController = controller;
+            const isCurrent = () => !disposed && !controller.signal.aborted && generation === rootGeneration;
+            const document = creoDocumentsByPath.get(path.toLocaleLowerCase());
+            if (!document) throw new Error(`The Creo document ${path} is unavailable.`);
+            setActiveRoot(path);
+            setTree(null);
+            clearSelection();
+            setError(null);
+            setStatus(`Preparing PTC Creo geometry for ${path}…`);
+            setProgress(72);
+            releaseModel();
+            const triangleCount = document.scene.meshes.reduce((total: number, mesh: any) => total + mesh.indices.length / 3, 0);
+            const lineVertexCount = document.scene.lineSets.reduce((total: number, lines: any) => total + lines.positions.length / 3, 0);
+            if (!triangleCount && !lineVertexCount && !document.images?.length) {
+              const detail = document.diagnostics?.find((item: any) => item.severity !== "info")?.message;
+              throw new Error(detail ?? `No supported saved display geometry was decoded from ${path}.`);
+            }
+            const loaded = await createCreoThreeGroup(runtime, document.scene, document, path);
+            if (!isCurrent()) {
+              disposeCreoThreeGroup(loaded.model);
+              for (const url of loaded.objectUrls) URL.revokeObjectURL(url);
+              return;
+            }
+            setProgress(88);
+            presentModel(loaded.model, loaded.objectUrls);
+          };
+        }
+
+        // Creo and Solid Edge both use .asm. Creo PSB files were claimed
+        // above; Solid Edge documents use the Compound File Binary signature.
+        const isCompoundFile = (prefix: Uint8Array) => prefix.length >= 8
+          && [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1].every((value, index) => prefix[index] === value);
+        const solidEdgeDocumentsByPath = new Map<string, any>();
+        const solidEdgeRootOptions: RootOption[] = [];
+        const addSolidEdgeDocument = (preferredPath: string, document: any) => {
+          let path = preferredPath.replace(/\\/g, "/");
+          let suffix = 2;
+          while (solidEdgeDocumentsByPath.has(path.toLocaleLowerCase())) path = `${suffix++}/${preferredPath.replace(/\\/g, "/")}`;
+          solidEdgeDocumentsByPath.set(path.toLocaleLowerCase(), document);
+          solidEdgeRootOptions.push({ path, label: path, kind: `Solid Edge ${document.kind === "sheet-metal" ? "sheet-metal part" : document.kind}` });
+        };
+        const selectedSolidEdgeCandidates = files.filter((file) => ["par", "psm", "asm", "dft"].includes(extension(file.name)) && !creoSelectedFiles.has(file));
+        const archiveSolidEdgeCandidates = sharedZipInventory.filter((item: any) => ["par", "psm", "asm", "dft"].includes(extension(item.path)) && !creoArchiveEntryPaths.has(item.path.toLocaleLowerCase()));
+        if (selectedSolidEdgeCandidates.length || archiveSolidEdgeCandidates.length) {
+          setStatus("Reading Siemens Solid Edge documents…");
+          setProgress(24);
+          for (const file of selectedSolidEdgeCandidates) {
+            const prefix = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+            if (!isCompoundFile(prefix)) continue;
+            const path = filePath(file);
+            addSolidEdgeDocument(path, await SolidEdge.parseSolidEdgeDocument(file, { path, levelOfDetail: "high" }));
+          }
+          for (const entry of archiveSolidEdgeCandidates) {
+            const prefix = await readSharedZipEntryPrefix(entry.path, 8);
+            if (!isCompoundFile(prefix)) continue;
+            addSolidEdgeDocument(entry.path, await SolidEdge.parseSolidEdgeDocument(
+              await readSharedZipEntry(entry.path),
+              { path: entry.path, levelOfDetail: "high" },
+            ));
+          }
+        }
+        solidEdgeRootOptions.sort((left, right) => {
+          const priority = (item: RootOption) => {
+            const document = solidEdgeDocumentsByPath.get(item.path.toLocaleLowerCase());
+            const kind = document?.kind;
+            return (document?.meshes?.length ? 0 : 10) + (kind === "assembly" ? 0 : kind === "part" || kind === "sheet-metal" ? 1 : kind === "draft" ? 2 : 3);
+          };
+          return priority(left) - priority(right) || left.path.localeCompare(right.path, undefined, { numeric: true });
+        });
+
+        let openSolidEdgeRoot: ((path: string) => Promise<void>) | undefined;
+        if (solidEdgeRootOptions.length) {
+          openSolidEdgeRoot = async (path: string) => {
+            if (disposed) return;
+            const generation = ++rootGeneration;
+            rootController?.abort();
+            const controller = new AbortController();
+            rootController = controller;
+            const isCurrent = () => !disposed && !controller.signal.aborted && generation === rootGeneration;
+            const document = solidEdgeDocumentsByPath.get(path.toLocaleLowerCase());
+            if (!document) throw new Error(`The Solid Edge document ${path} is unavailable.`);
+            setActiveRoot(path);
+            setTree(null);
+            clearSelection();
+            setError(null);
+            setStatus(`Preparing Solid Edge geometry for ${path}…`);
+            setProgress(74);
+            releaseModel();
+            const triangleCount = document.meshes.reduce((total: number, mesh: any) => total + mesh.indices.length / 3, 0);
+            if (!triangleCount) {
+              const detail = document.diagnostics?.find((item: any) => item.severity !== "info")?.message;
+              throw new Error(detail ?? `No saved Solid Edge display mesh was decoded from ${path}.`);
+            }
+            const model = createSolidEdgeThreeGroup(runtime, document, path);
+            if (!isCurrent()) {
+              disposeSolidEdgeThreeGroup(model);
+              return;
+            }
+            setProgress(88);
+            presentModel(model);
+          };
+        }
+
+        const nxFiles = files.filter((file) => ["prt", "xzip"].includes(extension(file.name)) && !creoSelectedFiles.has(file));
+        const nxArchiveEntries = sharedZipInventory.filter((item: any) => extension(item.path) === "prt" && !creoArchiveEntryPaths.has(item.path.toLocaleLowerCase()));
         let nxArchive: any;
         if (nxFiles.length || nxArchiveEntries.length) {
           setStatus("Reading Siemens NX workspace…");
@@ -1282,7 +1436,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
               setProgress(84);
               const model = createFusionThreeGroup(runtime, renderScene, document, path);
               if (!isCurrent()) {
-                disposeFusionThreeGroup(model);
+                disposeFusionThreeGroup(runtime, model);
                 return;
               }
               presentModel(model);
@@ -1318,7 +1472,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
               setProgress(nextProgress);
             });
             if (!isCurrent()) {
-              if (!disposeCatiaThreeGroup(loaded.model) && !disposeDemo3DModel(loaded.model)) InventorThree.disposeInventorThreeGroup?.(loaded.model);
+              if (!disposeCreoThreeGroup(loaded.model) && !disposeCatiaThreeGroup(loaded.model) && !disposeDemo3DModel(loaded.model)) InventorThree.disposeInventorThreeGroup?.(loaded.model);
               for (const url of loaded.objectUrls) URL.revokeObjectURL(url);
               return;
             }
@@ -1375,7 +1529,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
               setProgress(nextProgress);
             });
             if (!isCurrent()) {
-              if (!disposeCatiaThreeGroup(loaded.model) && !disposeDemo3DModel(loaded.model)) InventorThree.disposeInventorThreeGroup?.(loaded.model);
+              if (!disposeCreoThreeGroup(loaded.model) && !disposeCatiaThreeGroup(loaded.model) && !disposeDemo3DModel(loaded.model)) InventorThree.disposeInventorThreeGroup?.(loaded.model);
               for (const url of loaded.objectUrls) URL.revokeObjectURL(url);
               return;
             }
@@ -1487,10 +1641,18 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           }
         };
 
-        const rootOptions = [...inventorRootOptions, ...nxRootOptions, ...fusionRootOptions, ...solidWorksRootOptions, ...catiaRootOptions, ...catiaV4RootOptions, ...directRootOptions, ...archiveDirectRootOptions];
+        const rootOptions = [...inventorRootOptions, ...creoRootOptions, ...solidEdgeRootOptions, ...nxRootOptions, ...fusionRootOptions, ...solidWorksRootOptions, ...catiaRootOptions, ...catiaV4RootOptions, ...directRootOptions, ...archiveDirectRootOptions];
         if (!rootOptions.length) throw new Error("No supported CAD document was found in this selection.");
         setRoots(rootOptions);
         const openWorkspaceRoot = async (path: string) => {
+          if (creoDocumentsByPath.has(path.toLocaleLowerCase())) {
+            if (!openCreoRoot) throw new Error(`The Creo workspace for ${path} is unavailable.`);
+            return openCreoRoot(path);
+          }
+          if (solidEdgeDocumentsByPath.has(path.toLocaleLowerCase())) {
+            if (!openSolidEdgeRoot) throw new Error(`The Solid Edge workspace for ${path} is unavailable.`);
+            return openSolidEdgeRoot(path);
+          }
           if (nxDocumentsByPath.has(path.toLocaleLowerCase())) {
             if (!openNxRoot) throw new Error(`The Siemens NX workspace for ${path} is unavailable.`);
             return openNxRoot(path);

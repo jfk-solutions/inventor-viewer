@@ -2,6 +2,10 @@ export const CAD_MODEL_EXTENSIONS = ["ipt", "iam", "idw", "ipn", "ide", "dwg", "
 
 export const NX_MODEL_EXTENSIONS = ["prt", "xzip"] as const;
 
+export const CREO_MODEL_EXTENSIONS = ["asm", "drw", "sec"] as const;
+
+export const SOLIDEDGE_MODEL_EXTENSIONS = ["par", "psm", "dft"] as const;
+
 export const SOLIDWORKS_MODEL_EXTENSIONS = ["sldprt", "sldasm", "slddrw"] as const;
 
 export const CATIA_MODEL_EXTENSIONS = ["catpart", "catproduct", "catshape", "cgr", "model"] as const;
@@ -27,7 +31,7 @@ export const THREE_RESOURCE_EXTENSIONS = [
   "dat",
 ] as const;
 
-const modelExtensions = new Set<string>([...CAD_MODEL_EXTENSIONS, ...NX_MODEL_EXTENSIONS, ...SOLIDWORKS_MODEL_EXTENSIONS, ...CATIA_MODEL_EXTENSIONS, ...FUSION_MODEL_EXTENSIONS, ...THREE_MODEL_EXTENSIONS, ...DEMO3D_MODEL_EXTENSIONS, ...OCCT_MODEL_EXTENSIONS, ...SPECIAL_MODEL_EXTENSIONS]);
+const modelExtensions = new Set<string>([...CAD_MODEL_EXTENSIONS, ...NX_MODEL_EXTENSIONS, ...CREO_MODEL_EXTENSIONS, ...SOLIDEDGE_MODEL_EXTENSIONS, ...SOLIDWORKS_MODEL_EXTENSIONS, ...CATIA_MODEL_EXTENSIONS, ...FUSION_MODEL_EXTENSIONS, ...THREE_MODEL_EXTENSIONS, ...DEMO3D_MODEL_EXTENSIONS, ...OCCT_MODEL_EXTENSIONS, ...SPECIAL_MODEL_EXTENSIONS]);
 const acceptedExtensions = new Set<string>([...modelExtensions, ...THREE_RESOURCE_EXTENSIONS]);
 const threeModelExtensions = new Set<string>(THREE_MODEL_EXTENSIONS);
 const directModelExtensions = new Set<string>([...THREE_MODEL_EXTENSIONS, ...DEMO3D_MODEL_EXTENSIONS, ...OCCT_MODEL_EXTENSIONS, ...SPECIAL_MODEL_EXTENSIONS]);
@@ -36,7 +40,9 @@ const resourceExtensions = new Set<string>(THREE_RESOURCE_EXTENSIONS);
 export const ACCEPTED_FILE_TYPES = [...acceptedExtensions].map((value) => `.${value}`).join(",");
 
 export function fileExtension(path: string) {
-  return path.split(".").pop()?.toLowerCase() ?? "";
+  const normalized = path.toLowerCase();
+  const versionedNativeCad = /\.(prt|asm|drw|sec|par|psm|dft)\.\d+$/i.exec(normalized);
+  return versionedNativeCad?.[1] ?? normalized.split(".").pop() ?? "";
 }
 
 export function isAcceptedFile(path: string) {

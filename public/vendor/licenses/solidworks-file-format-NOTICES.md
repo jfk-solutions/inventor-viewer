@@ -14,3 +14,9 @@ specification is published under CC-BY-4.0.
 - cadmpeg: https://github.com/cadmpeg/cadmpeg
 - License: Apache-2.0
 - SolidWorks format specification: CC-BY-4.0
+
+The native `Contents/CusProps` CArchive record layout was implemented with
+reference to the Apache-2.0-licensed SWFormat interoperability project.
+
+- SWFormat: https://github.com/KenM76/swformat
+- License: Apache-2.0

@@ -37,6 +37,8 @@ function FormatPills() {
     <span><FileBox size={18} /> Inventor <b>IPT</b></span>
     <span><Boxes size={18} /> Assembly <b>IAM</b></span>
     <span><FileCode2 size={18} /> Drawing <b>IDW</b></span>
+    <span><Boxes size={18} /> PTC Creo <b>PRT / ASM</b></span>
+    <span><Box size={18} /> Solid Edge <b>PAR / PSM / ASM</b></span>
     <span><Box size={18} /> Siemens NX <b>PRT / XZIP</b></span>
     <span><Box size={18} /> Fusion <b>F3D / F3Z</b></span>
     <span><Boxes size={18} /> CATIA <b>MODEL / CATPART / CATPRODUCT</b></span>
@@ -79,7 +81,7 @@ export function DropZone({ onFiles, compact = false }: DropZoneProps) {
         {!compact && <span>or click to browse your computer</span>}
       </div>
       {!compact && <button type="button" className="choose-button">Choose files <ArrowRight size={16} /></button>}
-      {!compact && <div className="drop-formats">IPT · IAM · NX PRT · F3D · CATIA MODEL · CATPART · CATPRODUCT · SLDPRT · SLDASM · DWG · STEP · IFC</div>}
+      {!compact && <div className="drop-formats">IPT · IAM · SOLID EDGE PAR / PSM / ASM · CREO PRT / ASM · NX PRT · F3D · CATIA · SOLIDWORKS · DWG · STEP · IFC</div>}
     </div>
   );
 }
@@ -103,7 +105,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
         <div className="hero-copy">
           <div className="eyebrow"><span /> Native CAD Viewer by JFK Solutions</div>
           <h1>Your CAD data.<br /><em>Right here.</em></h1>
-          <p>Open Inventor, Siemens NX, Fusion, CATIA, SolidWorks, AutoCAD, STEP, Rhino, FreeCAD, IFC and Sweet Home 3D files — plus common 3D formats — directly in your browser. No installation. No upload.</p>
+          <p>Open Inventor, Solid Edge, PTC Creo, Siemens NX, Fusion, CATIA, SolidWorks, AutoCAD, STEP, Rhino, FreeCAD, IFC and Sweet Home 3D files — plus common 3D formats — directly in your browser. No installation. No upload.</p>
           <div className="trust-row">
             <span><ShieldCheck size={17} /> Processed locally</span>
             <span><Zap size={17} /> Opens in seconds</span>
@@ -132,6 +134,8 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
           <div className="format-details page-width">
             <div><strong>Inventor 3D</strong><span>.ipt parts, .iam assemblies, .ipn presentations</span></div>
             <div><strong>Inventor 2D</strong><span>.idw drawings and Inventor .dwg references</span></div>
+            <div><strong>PTC Creo</strong><span>.prt parts, .asm assemblies, .drw drawings and .sec sections, including numeric filename revisions and ZIP workspaces</span></div>
+            <div><strong>Siemens Solid Edge</strong><span>.par parts, .psm sheet-metal parts, .asm assemblies and .dft drafts, individually or in ZIP workspaces</span></div>
             <div><strong>Siemens NX</strong><span>.prt parts, assemblies and drawings plus .xzip archives with embedded JT display geometry</span></div>
             <div><strong>Autodesk Fusion</strong><span>.f3d designs and .f3z distributed-design archives with native ShapeManager geometry</span></div>
             <div><strong>CATIA V4</strong><span>.model documents with renderer geometry from a same-name AP214 .stp or .step companion, selected together or packaged in ZIP</span></div>
@@ -178,7 +182,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
         <div className="page-width cta-inner">
           <div>
             <span>CAD integration for your business</span>
-            <h2>Need Inventor, Siemens NX, Fusion, CATIA or SolidWorks file-reading support?</h2>
+            <h2>Need Inventor, Solid Edge, PTC Creo, Siemens NX, Fusion, CATIA or SolidWorks file-reading support?</h2>
             <p>We help companies bring native CAD data into their own applications and engineering workflows.</p>
           </div>
           <a className="contact-button" href={CONTACT_URL}>Discuss your use case <Mail size={18} /></a>
