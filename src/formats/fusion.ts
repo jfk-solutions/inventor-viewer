@@ -31,10 +31,10 @@ export function createFusionThreeGroup(
     breps: document.breps?.length ?? 0,
     designSegments: document.designSegments?.length ?? 0,
     triangles: scene.triangleCount,
-    materials: scene.materials.length,
-    textures: scene.textures.length,
-    unresolvedMaterialIds: [...scene.unresolvedMaterialIds],
-    unresolvedTextureIds: [...scene.unresolvedTextureIds],
+    materials: scene.materials?.length ?? 0,
+    textures: scene.textures?.length ?? 0,
+    unresolvedMaterialIds: [...(scene.unresolvedMaterialIds ?? [])],
+    unresolvedTextureIds: [...(scene.unresolvedTextureIds ?? [])],
     diagnostics: scene.diagnostics.map((item) => `${item.code}: ${item.message}`),
   };
   return model;
