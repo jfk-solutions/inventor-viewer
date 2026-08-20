@@ -14,6 +14,13 @@ type SolidEdgeDocument = {
     savedViews: readonly unknown[];
     featureTable?: { features: readonly unknown[] };
   };
+  sheetMetal?: {
+    thickness?: number;
+    bendRadius?: number;
+    neutralFactor?: number;
+    gauge?: string;
+  };
+  pmi?: { designDimensions: readonly unknown[] };
   properties: Readonly<Record<string, unknown>>;
   propertySets: readonly unknown[];
   displayStyleLibrary?: { styles: readonly unknown[] };
@@ -42,6 +49,11 @@ export async function createSolidEdgeThreeGroup(runtime: CadRuntime, document: S
     assemblyIotRecords: iotStreams.reduce((total, stream) => total + stream.records.length, 0),
     savedViews: document.partsLiteData?.savedViews.length ?? 0,
     features: document.partsLiteData?.featureTable?.features.length ?? 0,
+    pmiDimensions: document.pmi?.designDimensions.length ?? 0,
+    sheetThickness: document.sheetMetal?.thickness,
+    bendRadius: document.sheetMetal?.bendRadius,
+    neutralFactor: document.sheetMetal?.neutralFactor,
+    gauge: document.sheetMetal?.gauge,
     displayStyles: document.displayStyleLibrary?.styles.length ?? 0,
     propertySets: document.propertySets.length,
     ...document.properties,

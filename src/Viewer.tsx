@@ -991,22 +991,21 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           finally { await source.close?.(); }
         };
 
-        // Creo and Siemens NX both use .prt. Detect the native signature before
-        // assigning either reader so an extension never guesses the CAD system.
+        // Creo shares extensions such as .prt and .asm with other CAD systems.
+        // Ask the Creo reader to claim native PSB content before routing it.
         const creoSelectedFiles = new Set<File>();
         const creoArchiveEntryPaths = new Set<string>();
         const creoSources: any[] = [];
         const selectedCreoCandidates = files.filter((file) => ["prt", "asm", "drw", "sec"].includes(extension(file.name)));
         for (const file of selectedCreoCandidates) {
-          const prefix = new Uint8Array(await file.slice(0, 16).arrayBuffer());
-          if (Creo.detectCreoInput(prefix) !== "creo-psb") continue;
+          if (!await Creo.isCreoFile(file)) continue;
           creoSelectedFiles.add(file);
           creoSources.push(file);
         }
         const archiveCreoCandidates = sharedZipInventory.filter((item: any) => ["prt", "asm", "drw", "sec"].includes(extension(item.path)));
         for (const entry of archiveCreoCandidates) {
           const prefix = await readSharedZipEntryPrefix(entry.path, 16);
-          if (Creo.detectCreoInput(prefix) !== "creo-psb") continue;
+          if (!Creo.isCreoFile(prefix)) continue;
           creoArchiveEntryPaths.add(entry.path.toLocaleLowerCase());
           creoSources.push({ name: entry.path, source: await readSharedZipEntry(entry.path) });
         }
@@ -1066,11 +1065,20 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           };
         }
 
-        // Creo and Solid Edge both use .asm. The Solid Edge workspace validates
-        // each candidate's native CFB signature and leaves Creo PSB files alone.
-        const selectedSolidEdgeCandidates = files.filter((file) => ["par", "psm", "asm", "dft"].includes(extension(file.name)) && !creoSelectedFiles.has(file));
-        const archiveSolidEdgeCandidates = sharedZipInventory.filter((item: any) => ["par", "psm", "asm", "dft"].includes(extension(item.path)) && !creoArchiveEntryPaths.has(item.path.toLocaleLowerCase()));
-        if (selectedSolidEdgeCandidates.length || archiveSolidEdgeCandidates.length) {
+        // Extensions such as .asm are shared by multiple CAD systems. Ask the
+        // Solid Edge reader to identify its native container before routing it.
+        const selectedSolidEdgeCandidates = files.filter((file) => SolidEdge.isSolidEdgeDocumentPath(file.name));
+        const archiveSolidEdgeCandidates = sharedZipInventory.filter((item: any) => SolidEdge.isSolidEdgeDocumentPath(item.path));
+        const identifiedSolidEdgePaths = new Set<string>();
+        for (const file of selectedSolidEdgeCandidates) {
+          const path = filePath(file);
+          if (await SolidEdge.isSolidEdgeFile(file, { path })) identifiedSolidEdgePaths.add(path.toLocaleLowerCase());
+        }
+        for (const entry of archiveSolidEdgeCandidates) {
+          const bytes = await readSharedZipEntry(entry.path);
+          if (await SolidEdge.isSolidEdgeFile(bytes, { path: entry.path })) identifiedSolidEdgePaths.add(entry.path.toLocaleLowerCase());
+        }
+        if (identifiedSolidEdgePaths.size) {
           setStatus("Indexing Siemens Solid Edge workspace…");
           setProgress(24);
           const provider = sharedZipProvider ? {
