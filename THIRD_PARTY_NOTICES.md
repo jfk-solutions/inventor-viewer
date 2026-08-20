@@ -21,7 +21,7 @@ The browser runtime and application build also include the following third-party
 
 | Package | Version | License |
 | --- | ---: | --- |
-| `@node-projects/acad-ts` | 2.4.2 | MIT |
+| `@node-projects/acad-ts` | 3.0.2 | MIT |
 | `@jfk-solutions/demo3d-file-format` | 1.8.0 | MIT |
 | `three` | 0.185.1 | MIT |
 | `earcut` | 3.2.3 | ISC |
