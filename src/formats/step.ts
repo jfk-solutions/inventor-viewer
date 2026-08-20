@@ -17,20 +17,93 @@ type StepRenderMesh = {
   normals: Float32Array;
   indices: Uint32Array;
   color: readonly [number, number, number, number];
+  material?: StepRenderMaterial;
+  backColor?: readonly [number, number, number, number];
+  backMaterial?: StepRenderMaterial | null;
+};
+
+type StepRenderMaterial = {
+  shading?: "flat" | "smooth";
+  ambient?: number;
+  diffuse?: number;
+  specular?: number;
+  shininess?: number;
+  specularColor?: readonly [number, number, number];
+};
+
+type StepRenderPolyline = {
+  name: string;
+  positions: Float32Array;
+  indices: Uint32Array;
+  color: readonly [number, number, number, number];
+  width?: number;
+  pattern?: readonly number[];
+};
+
+type StepRenderPointSet = {
+  name: string;
+  positions: Float32Array;
+  color: readonly [number, number, number, number];
+  marker: "dot" | "x" | "plus" | "asterisk" | "ring" | "square" | "triangle";
+  size: number;
+};
+
+type StepRenderText = {
+  name: string;
+  text: string;
+  origin: readonly [number, number, number];
+  xAxis: readonly [number, number, number];
+  yAxis: readonly [number, number, number];
+  color: readonly [number, number, number, number];
+  height: number;
+  characterWidth: number;
+  alignment: string;
+  path: "right" | "left" | "up" | "down";
+  font?: string;
+};
+
+type StepRenderView = {
+  name: string;
+  isDefault?: boolean;
+  projection: "parallel" | "central";
+  position: readonly [number, number, number];
+  target: readonly [number, number, number];
+  up: readonly [number, number, number];
+  viewWindowWidth: number;
+  viewWindowHeight: number;
+  viewPlaneDistance: number;
+  frontPlaneDistance?: number;
+  backPlaneDistance?: number;
+  sideClipping: boolean;
+  hiddenLineSurfaceRemoval?: boolean;
+  sourceEntityId: number;
+  sourceRepresentationIds: readonly number[];
+  meshIndices: readonly number[];
+  polylineIndices: readonly number[];
+  pointSetIndices: readonly number[];
+  textIndices: readonly number[];
 };
 
 type StepRenderNode = {
   name: string;
   meshIndices: readonly number[];
+  polylineIndices: readonly number[];
+  pointSetIndices: readonly number[];
+  textIndices: readonly number[];
   children: readonly StepRenderNode[];
   sourceRepresentationId?: number;
   sourceRelationshipId?: number;
+  sourceMappedItemId?: number;
 };
 
 type StepRenderScene = {
   unit: "millimeter";
   sourceUnitScaleToMillimeter: number;
   meshes: readonly StepRenderMesh[];
+  polylines: readonly StepRenderPolyline[];
+  pointSets: readonly StepRenderPointSet[];
+  texts: readonly StepRenderText[];
+  views: readonly StepRenderView[];
   nodes: readonly StepRenderNode[];
   diagnostics: readonly StepDiagnostic[];
   statistics: {
@@ -39,6 +112,9 @@ type StepRenderScene = {
     renderedFaces: number;
     skippedFaces: number;
     triangles: number;
+    lineSegments: number;
+    points?: number;
+    texts?: number;
   };
 };
 
@@ -149,9 +225,10 @@ async function parseStep(file: File, onProgress?: CadLoadProgress) {
           onProgress?.(`Tessellating ${progress.completedFaces.toLocaleString()} / ${progress.totalFaces.toLocaleString()} STEP faces…`, 64 + Math.min(1, progress.fraction) * 28);
         }
       } else if (message.type === "complete") {
-        if (!message.scene.meshes.length) {
+        const primitiveCount = message.scene.meshes.length + message.scene.polylines.length + message.scene.pointSets.length + message.scene.texts.length;
+        if (!primitiveCount) {
           const detail = message.scene.diagnostics[0]?.message;
-          finish(() => reject(new Error(detail ? `STEP contains no renderable faces: ${detail}` : "STEP contains no renderable faces.")));
+          finish(() => reject(new Error(detail ? `STEP contains no renderable geometry: ${detail}` : "STEP contains no renderable geometry.")));
           return;
         }
         console.debug(`STEP load timing (ms) ${(performance.now() - started).toFixed(1)}`);
@@ -193,11 +270,40 @@ function createStepModel(runtime: CadRuntime, scene: StepRenderScene, fileName: 
     entities: scene.statistics.sourceEntities,
     faces: `${scene.statistics.renderedFaces.toLocaleString()} / ${scene.statistics.totalFaces.toLocaleString()}`,
     triangles: scene.statistics.triangles,
+    lineSegments: scene.statistics.lineSegments,
+    points: scene.statistics.points ?? 0,
+    texts: scene.statistics.texts ?? 0,
+    savedViews: scene.views.map((view) => `${view.isDefault ? "Default: " : ""}${view.name}`),
     skippedFaces: scene.statistics.skippedFaces,
     diagnostics: scene.diagnostics.map((item) => `${item.code}${item.entityId == null ? "" : ` #${item.entityId}`}: ${item.message}`),
   };
 
+  model.userData.stepViews = scene.views;
+
   const materials = new Map<string, any>();
+  const surfaceMaterial = (
+    color: readonly [number, number, number, number],
+    appearance: StepRenderMaterial | null | undefined,
+    side: number,
+  ) => {
+    const materialKey = JSON.stringify([color, appearance, side]);
+    let material = materials.get(materialKey);
+    if (material) return material;
+    const specular = appearance?.specularColor ?? [appearance?.specular ?? 0.18, appearance?.specular ?? 0.18, appearance?.specular ?? 0.18];
+    material = new THREE.MeshPhongMaterial({
+      color: new THREE.Color(color[0], color[1], color[2]),
+      opacity: color[3],
+      transparent: color[3] < 1,
+      flatShading: appearance?.shading === "flat",
+      shininess: appearance?.shininess ?? 24,
+      specular: new THREE.Color(specular[0], specular[1], specular[2]),
+      side,
+    });
+    material.name = "STEP surface material";
+    materials.set(materialKey, material);
+    return material;
+  };
+
   const meshes = scene.meshes.map((source) => {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(source.positions, 3));
@@ -206,22 +312,16 @@ function createStepModel(runtime: CadRuntime, scene: StepRenderScene, fileName: 
     geometry.computeBoundingBox();
     geometry.computeBoundingSphere();
 
-    const materialKey = source.color.join(",");
-    let material = materials.get(materialKey);
-    if (!material) {
-      material = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(source.color[0], source.color[1], source.color[2]),
-        opacity: source.color[3],
-        transparent: source.color[3] < 1,
-        metalness: 0.04,
-        roughness: 0.68,
-        side: THREE.FrontSide,
-      });
-      material.name = "STEP surface material";
-      materials.set(materialKey, material);
+    const frontMaterial = surfaceMaterial(source.color, source.material, THREE.FrontSide);
+    const meshMaterials = source.backColor
+      ? [frontMaterial, surfaceMaterial(source.backColor, source.backMaterial, THREE.BackSide)]
+      : frontMaterial;
+    if (Array.isArray(meshMaterials)) {
+      geometry.addGroup(0, source.indices.length, 0);
+      geometry.addGroup(0, source.indices.length, 1);
     }
 
-    const mesh = new THREE.Mesh(geometry, material);
+    const mesh = new THREE.Mesh(geometry, meshMaterials);
     mesh.name = source.name || "STEP body";
     mesh.userData.inventor = {
       kind: "STEP body",
@@ -231,7 +331,117 @@ function createStepModel(runtime: CadRuntime, scene: StepRenderScene, fileName: 
     return mesh;
   });
 
+  const lineMaterials = new Map<string, any>();
+  const polylines = scene.polylines.map((source) => {
+    const geometry = new THREE.BufferGeometry();
+    const dashed = Boolean(source.pattern?.length);
+    if (dashed) {
+      const positions = new Float32Array(source.indices.length * 3);
+      source.indices.forEach((sourceIndex, destinationIndex) => {
+        positions[destinationIndex * 3] = source.positions[sourceIndex * 3] ?? 0;
+        positions[destinationIndex * 3 + 1] = source.positions[sourceIndex * 3 + 1] ?? 0;
+        positions[destinationIndex * 3 + 2] = source.positions[sourceIndex * 3 + 2] ?? 0;
+      });
+      geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    } else {
+      geometry.setAttribute("position", new THREE.BufferAttribute(source.positions, 3));
+      geometry.setIndex(new THREE.BufferAttribute(source.indices, 1));
+    }
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+    const materialKey = JSON.stringify([source.color, source.width, source.pattern]);
+    let material = lineMaterials.get(materialKey);
+    if (!material) {
+      const shared = {
+        color: new THREE.Color(source.color[0], source.color[1], source.color[2]),
+        opacity: source.color[3],
+        transparent: source.color[3] < 1,
+        linewidth: source.width ?? 1,
+      };
+      const dashSize = source.pattern?.filter((_, index) => index % 2 === 0).reduce((sum, value) => sum + value, 0) ?? 0;
+      const gapSize = source.pattern?.filter((_, index) => index % 2 === 1).reduce((sum, value) => sum + value, 0) ?? 0;
+      material = dashed
+        ? new THREE.LineDashedMaterial({ ...shared, dashSize: Math.max(dashSize, 1e-6), gapSize: Math.max(gapSize, 1e-6) })
+        : new THREE.LineBasicMaterial(shared);
+      material.name = "STEP curve material";
+      lineMaterials.set(materialKey, material);
+    }
+    const line = new THREE.LineSegments(geometry, material);
+    if (dashed) line.computeLineDistances();
+    line.name = source.name || "STEP curve";
+    line.userData.inventor = {
+      kind: "STEP curve",
+      sourcePath: fileName,
+      segments: source.indices.length / 2,
+      widthMillimeter: source.width,
+    };
+    return line;
+  });
+
+  const pointSets = scene.pointSets.map((source) => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(source.positions, 3));
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+    const material = new THREE.PointsMaterial({
+      color: new THREE.Color(source.color[0], source.color[1], source.color[2]),
+      opacity: source.color[3],
+      transparent: source.color[3] < 1,
+      size: Math.max(source.size, 1),
+      sizeAttenuation: false,
+    });
+    material.name = "STEP point material";
+    const points = new THREE.Points(geometry, material);
+    points.name = source.name || "STEP points";
+    points.userData.inventor = { kind: `STEP ${source.marker} points`, sourcePath: fileName, points: source.positions.length / 3 };
+    points.userData.stepPointSize = source.size;
+    return points;
+  });
+
+  const texts = scene.texts.map((source) => {
+    const displayText = source.text.slice(0, 1024);
+    const fontSize = 64;
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    const font = (source.font || "sans-serif").replace(/["'\\]/g, "");
+    if (context) context.font = `${fontSize}px ${font}`;
+    canvas.width = Math.max(32, Math.min(4096, Math.ceil(context?.measureText(displayText).width ?? displayText.length * fontSize * 0.6) + 12));
+    canvas.height = fontSize + 16;
+    const drawing = canvas.getContext("2d");
+    if (drawing) {
+      drawing.clearRect(0, 0, canvas.width, canvas.height);
+      drawing.font = `${fontSize}px ${font}`;
+      drawing.textBaseline = "middle";
+      drawing.fillStyle = "white";
+      drawing.fillText(displayText, 6, canvas.height / 2);
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      color: new THREE.Color(source.color[0], source.color[1], source.color[2]),
+      opacity: source.color[3],
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    material.name = "STEP annotation text material";
+    const width = Math.max(source.characterWidth * Math.max(displayText.length, 1), source.height * canvas.width / canvas.height);
+    const text = new THREE.Mesh(new THREE.PlaneGeometry(width, Math.max(source.height, 1e-6)), material);
+    text.name = source.name || displayText || "STEP text";
+    text.position.fromArray(source.origin);
+    const xAxis = new THREE.Vector3().fromArray(source.xAxis).normalize();
+    const yAxis = new THREE.Vector3().fromArray(source.yAxis).normalize();
+    const zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize();
+    if (zAxis.lengthSq() > 0) text.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
+    text.userData.inventor = { kind: "STEP annotation text", sourcePath: fileName, text: source.text, font: source.font };
+    return text;
+  });
+
   const claimedMeshes = new Set<number>();
+  const claimedPolylines = new Set<number>();
+  const claimedPointSets = new Set<number>();
+  const claimedTexts = new Set<number>();
   const createNode = (source: StepRenderNode): any => {
     const node = new THREE.Group();
     node.name = source.name || "STEP occurrence";
@@ -241,6 +451,7 @@ function createStepModel(runtime: CadRuntime, scene: StepRenderScene, fileName: 
       sourcePath: fileName,
       ...(source.sourceRepresentationId === undefined ? {} : { representationId: source.sourceRepresentationId }),
       ...(source.sourceRelationshipId === undefined ? {} : { relationshipId: source.sourceRelationshipId }),
+      ...(source.sourceMappedItemId === undefined ? {} : { mappedItemId: source.sourceMappedItemId }),
     };
     for (const meshIndex of source.meshIndices) {
       const mesh = meshes[meshIndex];
@@ -248,12 +459,46 @@ function createStepModel(runtime: CadRuntime, scene: StepRenderScene, fileName: 
       claimedMeshes.add(meshIndex);
       node.add(mesh);
     }
+    for (const polylineIndex of source.polylineIndices) {
+      const polyline = polylines[polylineIndex];
+      if (!polyline || claimedPolylines.has(polylineIndex)) continue;
+      claimedPolylines.add(polylineIndex);
+      node.add(polyline);
+    }
+    for (const pointSetIndex of source.pointSetIndices) {
+      const pointSet = pointSets[pointSetIndex];
+      if (!pointSet || claimedPointSets.has(pointSetIndex)) continue;
+      claimedPointSets.add(pointSetIndex);
+      node.add(pointSet);
+    }
+    for (const textIndex of source.textIndices) {
+      const text = texts[textIndex];
+      if (!text || claimedTexts.has(textIndex)) continue;
+      claimedTexts.add(textIndex);
+      node.add(text);
+    }
     for (const child of source.children) node.add(createNode(child));
     return node;
   };
   for (const node of scene.nodes) model.add(createNode(node));
   for (let index = 0; index < meshes.length; index += 1) {
     if (!claimedMeshes.has(index)) model.add(meshes[index]);
+  }
+  for (let index = 0; index < polylines.length; index += 1) if (!claimedPolylines.has(index)) model.add(polylines[index]);
+  for (let index = 0; index < pointSets.length; index += 1) if (!claimedPointSets.has(index)) model.add(pointSets[index]);
+  for (let index = 0; index < texts.length; index += 1) if (!claimedTexts.has(index)) model.add(texts[index]);
+
+  const defaultView = scene.views.find((view) => view.isDefault);
+  if (defaultView) {
+    const visibleMeshes = new Set(defaultView.meshIndices);
+    const visiblePolylines = new Set(defaultView.polylineIndices);
+    const visiblePointSets = new Set(defaultView.pointSetIndices);
+    const visibleTexts = new Set(defaultView.textIndices);
+    meshes.forEach((object, index) => { object.visible = visibleMeshes.has(index); });
+    polylines.forEach((object, index) => { object.visible = visiblePolylines.has(index); });
+    pointSets.forEach((object, index) => { object.visible = visiblePointSets.has(index); });
+    texts.forEach((object, index) => { object.visible = visibleTexts.has(index); });
+    model.userData.stepDefaultView = defaultView;
   }
 
   // step-file-format returns millimetres in the STEP model's conventional

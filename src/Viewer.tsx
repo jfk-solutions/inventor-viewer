@@ -935,6 +935,38 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         };
         engine.releaseModel = releaseModel;
 
+        const applyDefaultStepView = (model: any) => {
+          const view = model.userData?.stepDefaultView;
+          if (!view) return;
+          model.updateWorldMatrix(true, true);
+          const position = new THREE.Vector3().fromArray(view.position).applyMatrix4(model.matrixWorld);
+          const target = new THREE.Vector3().fromArray(view.target).applyMatrix4(model.matrixWorld);
+          const up = new THREE.Vector3().fromArray(view.up).transformDirection(model.matrixWorld).normalize();
+          const worldScale = model.getWorldScale(new THREE.Vector3());
+          const scale = Math.max(Math.abs(worldScale.x), Math.abs(worldScale.y), Math.abs(worldScale.z), 1e-12);
+          const next = view.projection === "parallel" ? linear : perspective;
+          next.position.copy(position);
+          next.up.copy(up);
+          if (view.projection === "parallel") {
+            engine.orthoHeight = Math.max(view.viewWindowHeight * scale, 1e-9);
+            const rect = canvas.getBoundingClientRect();
+            linear.left = -engine.orthoHeight * rect.width / Math.max(rect.height, 1) / 2;
+            linear.right = -linear.left;
+            linear.top = engine.orthoHeight / 2;
+            linear.bottom = -linear.top;
+            linear.updateProjectionMatrix();
+            setViewMode("linear");
+          } else {
+            perspective.fov = THREE.MathUtils.radToDeg(2 * Math.atan(view.viewWindowHeight / Math.max(2 * view.viewPlaneDistance, 1e-12)));
+            perspective.updateProjectionMatrix();
+            setViewMode("perspective");
+          }
+          engine.camera = next;
+          controls.object = next;
+          controls.target.copy(target);
+          controls.update();
+        };
+
         const presentModel = (model: any, objectUrls: string[] = [], stepSource: { workspace: any; path: string } | null = null) => {
           releaseModel();
           engine.model = model;
@@ -948,9 +980,12 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           }
           setModelTwoSided(model, twoSidedRef.current, THREE, engine.originalMaterialSides);
           frameObject(model);
+          applyDefaultStepView(model);
           model.traverse((object: any) => {
             if (object.isPoints && object.material?.isPointsMaterial) {
-              object.material.size = Math.max(engine.modelSize * 0.002, 1e-6);
+              object.material.size = object.userData?.stepPointSize == null
+                ? Math.max(engine.modelSize * 0.002, 1e-6)
+                : Math.max(object.userData.stepPointSize, 1);
               object.material.needsUpdate = true;
             }
           });
