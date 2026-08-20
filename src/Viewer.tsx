@@ -1145,18 +1145,28 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           };
         }
 
-        const nxFiles = files.filter((file) => ["prt", "xzip"].includes(extension(file.name)) && !creoSelectedFiles.has(file));
-        const nxArchiveEntries = sharedZipInventory.filter((item: any) => extension(item.path) === "prt" && !creoArchiveEntryPaths.has(item.path.toLocaleLowerCase()));
+        // NX and Creo both use .prt. Let each native reader validate the file
+        // contents instead of treating the shared extension as a format marker.
+        // XZIP stays extension-routed because isNxFile intentionally only
+        // identifies direct NX part containers and never searches archives.
+        const nxFiles: File[] = [];
+        for (const file of files.filter((candidate) => ["prt", "xzip"].includes(extension(candidate.name)))) {
+          if (extension(file.name) === "xzip" || (!creoSelectedFiles.has(file) && await Nx.isNxFile(file))) nxFiles.push(file);
+        }
+        const nxArchiveSources: { name: string; source: Uint8Array }[] = [];
+        const nxArchiveCandidates = sharedZipInventory.filter((item: any) => extension(item.path) === "prt" && !creoArchiveEntryPaths.has(item.path.toLocaleLowerCase()));
+        for (const entry of nxArchiveCandidates) {
+          const source = await readSharedZipEntry(entry.path);
+          if (await Nx.isNxFile(source)) nxArchiveSources.push({ name: entry.path, source });
+        }
         let nxArchive: any;
-        if (nxFiles.length || nxArchiveEntries.length) {
+        if (nxFiles.length || nxArchiveSources.length) {
           setStatus("Reading Siemens NX workspace…");
           setProgress(22);
           if (nxFiles.length) {
             nxArchive = await Nx.openNxFiles(nxFiles);
           } else {
-            const sources = [];
-            for (const entry of nxArchiveEntries) sources.push({ name: entry.path, source: await readSharedZipEntry(entry.path) });
-            nxArchive = await Nx.openNxFiles(sources);
+            nxArchive = await Nx.openNxFiles(nxArchiveSources);
           }
         }
 

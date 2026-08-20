@@ -136,7 +136,7 @@ function Home({ onFiles }: { onFiles: (files: File[]) => void }) {
             <div><strong>Inventor 2D</strong><span>.idw drawings and Inventor .dwg references</span></div>
             <div><strong>PTC Creo</strong><span>.prt parts, .asm assemblies, .drw drawings and .sec sections, including numeric filename revisions and ZIP workspaces</span></div>
             <div><strong>Siemens Solid Edge</strong><span>.par parts, .psm sheet-metal parts, transformed .asm assemblies and .dft drafts with native styles and metadata</span></div>
-            <div><strong>Siemens NX</strong><span>.prt parts, assemblies and drawings plus .xzip archives with JT LODs, placements, materials, colors and textures</span></div>
+            <div><strong>Siemens NX</strong><span>Content-validated .prt parts, assemblies and drawings plus .xzip archives with JT LODs, placements, materials, colors and textures</span></div>
             <div><strong>Autodesk Fusion</strong><span>.f3d designs and .f3z distributed-design archives with native ShapeManager geometry</span></div>
             <div><strong>CATIA V4</strong><span>.model documents with renderer geometry from a same-name AP214 .stp or .step companion, selected together or packaged in ZIP</span></div>
             <div><strong>CATIA V5</strong><span>.CATPart parts, .CATProduct assemblies, .CATShape geometry and .cgr representations, individually or in ZIP workspaces</span></div>

@@ -48,6 +48,8 @@ type NxDocument = {
   materialTextures?: readonly { path: string; mediaType: string; bytes: Uint8Array }[];
   attributes?: readonly any[];
   physicalProperties?: Record<string, number>;
+  arrangements?: readonly { name: string; isDefault: boolean }[];
+  activeArrangement?: { name: string; isDefault: boolean };
   images?: readonly any[];
   references: readonly string[];
   streams: readonly string[];
@@ -247,6 +249,8 @@ export async function createNxThreeGroup(runtime: CadRuntime, document: NxDocume
     textures: (document.jtTextureImages?.length ?? 0) + (document.materialTextures?.length ?? 0),
     images: document.images?.length ?? Number(Boolean(document.preview)),
     attributes: document.attributes?.length ?? 0,
+    arrangements: document.arrangements?.length ?? 0,
+    activeArrangement: document.activeArrangement?.name,
     ...document.physicalProperties,
     references: document.references,
     streams: document.streams.length,
