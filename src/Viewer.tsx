@@ -664,6 +664,9 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
   const [stats, setStats] = useState({ objects: 0, triangles: 0 });
 
   const title = activeRoot || files[0]?.name || "CAD workspace";
+  const activeKind = useMemo(() => roots.find((root) => root.path.toLocaleLowerCase() === activeRoot.toLocaleLowerCase())?.kind ?? kindFor(title), [activeRoot, roots, title]);
+  const sourceFileLabel = files.length > 1 ? `${files[0].name} +${files.length - 1} more` : files[0]?.name || "Unknown file";
+  const sourceFileTitle = files.map((file) => file.name).join("\n");
   const fileSize = useMemo(() => files.reduce((total, file) => total + file.size, 0), [files]);
   const rootTypes = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1948,7 +1951,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           <button type="button" onClick={() => { if (roots.length > 1) { setRootQuery(""); setRootType("all"); setOpenMenu(!openMenu); } }} disabled={roots.length < 2} aria-haspopup="dialog" aria-expanded={openMenu}>
             <span>{title.split(/[\\/]/).pop()}</span>{roots.length > 1 && <ChevronDown size={14} />}
           </button>
-          <span className="file-meta">{kindFor(title)} · {readableBytes(fileSize)}</span>
+          <span className="file-meta" title={sourceFileTitle}>Source: {sourceFileLabel} · {activeKind} · {readableBytes(fileSize)}</span>
           {openMenu && <div className="root-menu" role="dialog" aria-label="Open a model from this selection">
             <div className="root-menu-search">
               <Search size={15} />
@@ -1996,7 +1999,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
       </header>
 
       <aside className={`model-panel ${leftOpen ? "" : "closed"}`}>
-        <div className="panel-heading"><div><span>Model</span><small>{roots.length > 1 ? `${roots.length} models` : kindFor(title)}</small></div><button type="button" onClick={() => setLeftOpen(false)} aria-label="Close model panel"><PanelLeftClose size={17} /></button></div>
+        <div className="panel-heading"><div><span>Model</span><small>{roots.length > 1 ? `${roots.length} models` : activeKind}</small></div><button type="button" onClick={() => setLeftOpen(false)} aria-label="Close model panel"><PanelLeftClose size={17} /></button></div>
         <div className="tree-search"><Search size={14} /><input placeholder="Filter model" aria-label="Filter model" /></div>
         <div className="model-tree">{tree ? <TreeNode item={tree} level={0} selected={selected} onSelect={selectObject} onToggleVisibility={toggleObjectVisibility} /> : <div className="tree-loading"><LoaderCircle className="spin" size={18} /> Reading model…</div>}</div>
         <div className="model-stats"><span><strong>{stats.objects.toLocaleString()}</strong> objects</span><span><strong>{stats.triangles.toLocaleString()}</strong> triangles</span></div>
