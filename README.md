@@ -27,8 +27,8 @@ See the [complete model format support matrix](./FORMAT_SUPPORT.md) for all acce
 | `.CATPart` | CATIA V5 parts with decoded native geometry carriers, hierarchy and metadata |
 | `.CATProduct` | CATIA V5 products with recursively resolved CATPart/CATShape/CGR references and an explicitly diagnosed fallback layout where occurrence transforms are unavailable |
 | `.CATShape`, `.cgr` | CATIA V5 shape and graphical-representation documents |
-| `.sldprt` | SolidWorks parts with resilient saved display-list tessellation, feature-scoped materials, previews, configurations and custom properties |
-| `.sldasm` | SolidWorks assemblies with recursively resolved, transformed occurrences, native materials and saved display-list tessellation |
+| `.sldprt` | SolidWorks parts with bounded saved display-list tessellation, feature-scoped materials, saved units/properties, previews and source diagnostics |
+| `.sldasm` | SolidWorks assemblies with bounded concurrent reference loading, transformed occurrences, native materials and saved display-list tessellation |
 | `.slddrw` | SolidWorks drawings with saved display geometry or embedded preview fallback |
 | `.dwg` | AutoCAD model space through `@node-projects/acad-ts` |
 | `.dxf` | ASCII and binary DXF; common line, arc, circle, polyline, point and 3D-face entities |
@@ -181,7 +181,7 @@ In the GitHub repository, open **Settings → Pages** and set **Source** to **Gi
 - `simaticnx-file-format` for Siemens NX PRT/SPLM/CFB parsing, JT scene graphs, LODs, placements, materials, colors, textures, metadata and multi-file reference resolution
 - `fusion-file-format` for F3D/F3Z parsing, native ShapeManager tessellation and snapshot discovery
 - `catia-file-format` for isolated CATIA V4 MODEL/STEP-companion support plus CATIA V5 parsing, ZIP/multi-file workspaces, renderer-neutral scene creation and local Three.js conversion
-- `solidworks-file-format` for browser-native SolidWorks parsing, ZIP workspaces, saved tessellation and Three.js scene conversion
+- `solidworks-file-format` for browser-native SolidWorks parsing, guarded ZIP workspaces, source-aware metadata, recursive assemblies, saved tessellation and resource-bounded Three.js scene conversion
 - [`acad-ts`](https://github.com/node-projects/acad-ts) for DWG/DXF parsing
 - [`demo3d-file-format`](https://github.com/JFK-Solutions/demo3d-file-format) for lazily loaded Demo3D/RAW3D parsing and Three.js scene conversion
 - `step-file-format` for dependency-free STEP parsing and tessellation through its transferable Worker protocol, including AP203/AP214/AP242 colors, opacity and occurrence hierarchy

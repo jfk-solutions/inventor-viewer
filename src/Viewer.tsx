@@ -554,10 +554,14 @@ function setModelTwoSided(model: any, enabled: boolean, THREE: any, originalSide
 }
 
 async function createSolidWorksModel(runtime: CadRuntime, document: any, renderScene?: any) {
-  const { THREE, SolidWorksThree } = runtime;
+  const { THREE, SolidWorks, SolidWorksThree } = runtime;
   const model = SolidWorksThree.createSolidWorksThreeGroup(renderScene ?? document, { mergeFaces: true });
   const configuration = document.configurations?.[0];
   const displaySummary = document.displayListSummary;
+  const renderStats = SolidWorksThree.getSolidWorksThreeRenderStats?.(model);
+  const referenceIssues = renderScene ? SolidWorks.getSolidWorksRenderReferenceIssues?.(renderScene) ?? [] : [];
+  const primaryLength = document.units?.primaryLength;
+  const streamCoverage = document.streamCoverageSummary;
   const triangleCount = renderScene?.triangleCount ?? (document.displayMeshes ?? []).reduce((total: number, mesh: any) => total + (mesh.indices?.length ?? 0) / 3, 0);
   model.userData.solidworksDocument = true;
   model.userData.solidworks = {
@@ -573,6 +577,21 @@ async function createSolidWorksModel(runtime: CadRuntime, document: any, renderS
     triangles: triangleCount,
     materials: renderScene?.materials?.length ?? document.visualMaterials?.length ?? 0,
     diagnostics: renderScene?.diagnostics?.length ?? document.diagnostics?.length ?? 0,
+    referenceIssues: referenceIssues.length,
+    savedLengthUnit: primaryLength?.status === "resolved" ? `${primaryLength.name} (${primaryLength.symbol})` : primaryLength?.status ?? "Unavailable",
+    ...(streamCoverage ? {
+      decodedStreams: streamCoverage.decoded,
+      partiallyDecodedStreams: streamCoverage.partiallyDecoded,
+      unknownStreams: streamCoverage.unknown,
+    } : {}),
+    ...(renderStats ? {
+      renderObjects: renderStats.renderObjects,
+      drawCalls: renderStats.drawCalls,
+      rendererGeometryBytes: renderStats.geometryBytes,
+      renderedLineSegments: renderStats.lineSegments,
+      renderedTextObjects: renderStats.textObjects,
+      renderedImages: renderStats.images,
+    } : {}),
     ...(displaySummary ? {
       geometryFingerprint: displaySummary.geometryHash,
       storedTriangles: displaySummary.storedTriangleCount,
@@ -598,14 +617,21 @@ async function createSolidWorksModel(runtime: CadRuntime, document: any, renderS
     previewMesh.name = `${document.name} saved preview`;
     previewMesh.userData.solidworks = { kind: "saved preview", sourcePath: document.path, width, height };
     model.add(previewMesh);
-    model.userData.solidworksOwnedMaterials ??= [];
-    model.userData.solidworksOwnedMaterials.push(material);
-    model.userData.solidworksPreviewTexture = texture;
+    model.userData.solidworksPreviewResources = { geometry, material, texture };
     return { model, objectUrls: [objectUrl] };
   } catch (cause) {
     URL.revokeObjectURL(objectUrl);
     throw cause;
   }
+}
+
+function disposeSolidWorksPreview(model: any) {
+  const resources = model?.userData?.solidworksPreviewResources;
+  if (!resources) return;
+  resources.geometry?.dispose?.();
+  resources.material?.dispose?.();
+  resources.texture?.dispose?.();
+  delete model.userData.solidworksPreviewResources;
 }
 
 export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
@@ -897,7 +923,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
           }
           scene.remove(engine.model);
           if (engine.model.userData?.solidworksDocument) {
-            engine.model.userData.solidworksPreviewTexture?.dispose?.();
+            disposeSolidWorksPreview(engine.model);
             SolidWorksThree.disposeSolidWorksThreeGroup?.(engine.model);
           } else if (!disposeCreoThreeGroup(engine.model) && !disposeSolidEdgeThreeGroup(runtime, engine.model) && !disposeNxThreeGroup(engine.model) && !disposeCatiaThreeGroup(engine.model) && !disposeFusionThreeGroup(runtime, engine.model) && !disposeDemo3DModel(engine.model)) InventorThree.disposeInventorThreeGroup?.(engine.model);
           for (const url of engine.objectUrls ?? []) URL.revokeObjectURL(url);
@@ -1220,7 +1246,16 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
             if (document.type === "assembly") {
               setStatus("Resolving linked SolidWorks components…");
               setProgress(70);
-              renderScene = await solidWorksWorkspace.buildRenderScene(path, { signal: controller.signal });
+              renderScene = await solidWorksWorkspace.buildRenderScene(path, {
+                signal: controller.signal,
+                onProgress: (event: any) => {
+                  if (!isCurrent()) return;
+                  const total = Math.max(event.discoveredDocumentCount ?? 0, 1);
+                  const settled = Math.min(event.settledDocumentCount ?? 0, total);
+                  setProgress(Math.min(81, 70 + settled / total * 11));
+                  setStatus(event.path ? `Resolving ${event.path}…` : "Resolving linked SolidWorks components…");
+                },
+              });
               if (!isCurrent()) return;
             }
             const hasGeometry = renderScene?.triangleCount || document.displayMeshes?.length;
@@ -1228,7 +1263,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
             setProgress(82);
             const loaded = await createSolidWorksModel(runtime, document, renderScene);
             if (!isCurrent()) {
-              loaded.model.userData.solidworksPreviewTexture?.dispose?.();
+              disposeSolidWorksPreview(loaded.model);
               SolidWorksThree.disposeSolidWorksThreeGroup?.(loaded.model);
               for (const url of loaded.objectUrls) URL.revokeObjectURL(url);
               return;
