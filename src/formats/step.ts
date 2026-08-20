@@ -19,10 +19,19 @@ type StepRenderMesh = {
   color: readonly [number, number, number, number];
 };
 
+type StepRenderNode = {
+  name: string;
+  meshIndices: readonly number[];
+  children: readonly StepRenderNode[];
+  sourceRepresentationId?: number;
+  sourceRelationshipId?: number;
+};
+
 type StepRenderScene = {
   unit: "millimeter";
   sourceUnitScaleToMillimeter: number;
   meshes: readonly StepRenderMesh[];
+  nodes: readonly StepRenderNode[];
   diagnostics: readonly StepDiagnostic[];
   statistics: {
     sourceEntities: number;
@@ -39,27 +48,19 @@ type PendingOcctLoad = {
   onProgress?: CadLoadProgress;
 };
 
-type PendingStepLoad = {
-  resolve: (scene: StepRenderScene) => void;
-  reject: (error: Error) => void;
-  onProgress?: CadLoadProgress;
-};
-
 type OcctWorkerResponse =
   | { type: "progress"; id: number; status: string; progress: number }
   | { type: "result"; id: number; output: ArrayBuffer; timings: Record<string, number> }
   | { type: "error"; id: number; message: string; stack?: string };
 
 type StepWorkerResponse =
-  | { type: "progress"; id: number; status: string; progress: number }
-  | { type: "result"; id: number; scene: StepRenderScene; timings: Record<string, number> }
-  | { type: "error"; id: number; message: string; stack?: string };
+  | { type: "progress"; progress: { phase: "parse"; fraction: number; entities: number } | { phase: "tessellate"; fraction: number; completedFaces: number; totalFaces: number } }
+  | { type: "complete"; scene: StepRenderScene }
+  | { type: "error"; name: string; message: string; stack?: string };
 
 let nextRequestId = 0;
 let occtWorker: Worker | undefined;
-let stepWorker: Worker | undefined;
 const pendingOcctLoads = new Map<number, PendingOcctLoad>();
-const pendingStepLoads = new Map<number, PendingStepLoad>();
 
 function extension(name: string) {
   return name.split(".").pop()?.toLowerCase() ?? "";
@@ -102,32 +103,10 @@ function getOcctWorker() {
   return worker;
 }
 
-function getStepWorker() {
-  if (stepWorker) return stepWorker;
+function createStepWorker() {
   const url = new URL(`${import.meta.env.BASE_URL}vendor/step-file-format.worker.min.js`, window.location.href);
   url.searchParams.set("v", CAD_RUNTIME_VERSION);
-  const worker = new Worker(url, { type: "module", name: "cad-viewer-step-file-format" });
-  worker.addEventListener("message", (event: MessageEvent<StepWorkerResponse>) => {
-    const message = event.data;
-    const pending = pendingStepLoads.get(message.id);
-    if (!pending) return;
-    if (message.type === "progress") {
-      pending.onProgress?.(message.status, message.progress);
-      return;
-    }
-    pendingStepLoads.delete(message.id);
-    if (message.type === "result") {
-      console.debug("STEP load timings (ms)", JSON.stringify(message.timings));
-      pending.resolve(message.scene);
-    } else pending.reject(workerError(message));
-  });
-  worker.addEventListener("error", (event) => {
-    rejectPending(pendingStepLoads, new Error(event.message || "The STEP worker stopped unexpectedly."));
-    worker.terminate();
-    if (stepWorker === worker) stepWorker = undefined;
-  });
-  stepWorker = worker;
-  return worker;
+  return new Worker(url, { type: "module", name: "cad-viewer-step-file-format" });
 }
 
 async function convertWithOcct(file: File, format: OcctFormat, onProgress?: CadLoadProgress) {
@@ -148,18 +127,57 @@ async function convertWithOcct(file: File, format: OcctFormat, onProgress?: CadL
 }
 
 async function parseStep(file: File, onProgress?: CadLoadProgress) {
-  const id = nextRequestId++;
   const input = await file.arrayBuffer();
-  const result = new Promise<StepRenderScene>((resolve, reject) => {
-    pendingStepLoads.set(id, { resolve, reject, onProgress });
+  const largeFile = input.byteLength >= 8 * 1024 * 1024;
+  const worker = createStepWorker();
+  const started = performance.now();
+  return new Promise<StepRenderScene>((resolve, reject) => {
+    let settled = false;
+    const finish = (action: () => void) => {
+      if (settled) return;
+      settled = true;
+      worker.terminate();
+      action();
+    };
+    worker.onmessage = (event: MessageEvent<StepWorkerResponse>) => {
+      const message = event.data;
+      if (message.type === "progress") {
+        const progress = message.progress;
+        if (progress.phase === "parse") {
+          onProgress?.(`Parsing ${progress.entities.toLocaleString()} STEP entities…`, 44 + Math.min(1, progress.fraction) * 18);
+        } else {
+          onProgress?.(`Tessellating ${progress.completedFaces.toLocaleString()} / ${progress.totalFaces.toLocaleString()} STEP faces…`, 64 + Math.min(1, progress.fraction) * 28);
+        }
+      } else if (message.type === "complete") {
+        if (!message.scene.meshes.length) {
+          const detail = message.scene.diagnostics[0]?.message;
+          finish(() => reject(new Error(detail ? `STEP contains no renderable faces: ${detail}` : "STEP contains no renderable faces.")));
+          return;
+        }
+        console.debug(`STEP load timing (ms) ${(performance.now() - started).toFixed(1)}`);
+        finish(() => resolve(message.scene));
+      } else {
+        const error = workerError(message);
+        error.name = message.name;
+        finish(() => reject(error));
+      }
+    };
+    worker.onerror = (event) => finish(() => reject(new Error(event.message || "The STEP worker stopped unexpectedly.")));
+    try {
+      worker.postMessage({
+        type: "load",
+        bytes: input,
+        parse: { progressInterval: 2_000 },
+        tessellation: {
+          curveSegments: largeFile ? 20 : 32,
+          surfaceSegments: largeFile ? 12 : 24,
+          subdivisionDepth: largeFile ? 0 : 1,
+        },
+      }, [input]);
+    } catch (error) {
+      finish(() => reject(error));
+    }
   });
-  try {
-    getStepWorker().postMessage({ type: "load", id, input }, [input]);
-  } catch (error) {
-    pendingStepLoads.delete(id);
-    throw error;
-  }
-  return result;
 }
 
 function createStepModel(runtime: CadRuntime, scene: StepRenderScene, fileName: string) {
@@ -180,7 +198,7 @@ function createStepModel(runtime: CadRuntime, scene: StepRenderScene, fileName: 
   };
 
   const materials = new Map<string, any>();
-  for (const source of scene.meshes) {
+  const meshes = scene.meshes.map((source) => {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(source.positions, 3));
     geometry.setAttribute("normal", new THREE.BufferAttribute(source.normals, 3));
@@ -210,7 +228,32 @@ function createStepModel(runtime: CadRuntime, scene: StepRenderScene, fileName: 
       sourcePath: fileName,
       triangles: source.indices.length / 3,
     };
-    model.add(mesh);
+    return mesh;
+  });
+
+  const claimedMeshes = new Set<number>();
+  const createNode = (source: StepRenderNode): any => {
+    const node = new THREE.Group();
+    node.name = source.name || "STEP occurrence";
+    node.userData.inventor = {
+      kind: source.children.length ? "STEP assembly" : "STEP occurrence",
+      name: node.name,
+      sourcePath: fileName,
+      ...(source.sourceRepresentationId === undefined ? {} : { representationId: source.sourceRepresentationId }),
+      ...(source.sourceRelationshipId === undefined ? {} : { relationshipId: source.sourceRelationshipId }),
+    };
+    for (const meshIndex of source.meshIndices) {
+      const mesh = meshes[meshIndex];
+      if (!mesh || claimedMeshes.has(meshIndex)) continue;
+      claimedMeshes.add(meshIndex);
+      node.add(mesh);
+    }
+    for (const child of source.children) node.add(createNode(child));
+    return node;
+  };
+  for (const node of scene.nodes) model.add(createNode(node));
+  for (let index = 0; index < meshes.length; index += 1) {
+    if (!claimedMeshes.has(index)) model.add(meshes[index]);
   }
 
   // step-file-format returns millimetres in the STEP model's conventional
