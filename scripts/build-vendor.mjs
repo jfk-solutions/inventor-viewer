@@ -9,6 +9,9 @@ const entry = path.join(root, "scripts", "runtime-entry.mjs");
 const outfile = path.join(root, "public", "vendor", "cad-viewer-runtime.min.js");
 const stepWorkerEntry = path.join(root, "scripts", "step-worker-entry.mjs");
 const stepWorkerOutfile = path.join(root, "public", "vendor", "step-file-format.worker.min.js");
+const stepFileFormatRoot = process.env.STEP_FILE_FORMAT_ROOT
+  ? path.resolve(process.env.STEP_FILE_FORMAT_ROOT)
+  : path.join(root, "..", "step-file-format");
 const versionFile = path.join(root, "src", "runtime-version.ts");
 const bzipSource = path.join(root, "..", "inventor-file-format", "node_modules", "@digitaldefiance", "bzip2-wasm", "bzip2-1.0.8");
 const bzipTarget = path.join(root, "public", "vendor", "bzip2-wasm", "bzip2-1.0.8");
@@ -29,7 +32,7 @@ const fusionNotices = path.join(root, "..", "fusion-file-format", "THIRD_PARTY_N
 const creoLicense = path.join(root, "..", "creo-file-format", "LICENSE");
 const creoNotices = path.join(root, "..", "creo-file-format", "THIRD_PARTY_NOTICES.md");
 const solidEdgeLicense = path.join(root, "..", "solidedge-file-format", "LICENSE");
-const stepFileFormatLicense = path.join(root, "..", "step-file-format", "LICENSE");
+const stepFileFormatLicense = path.join(stepFileFormatRoot, "LICENSE");
 const nxLicense = path.join(root, "..", "simaticnx-file-format", "LICENSE");
 const nxNotices = path.join(root, "..", "simaticnx-file-format", "THIRD_PARTY_NOTICES.md");
 const licenseTarget = path.join(root, "public", "vendor", "licenses");
@@ -62,6 +65,60 @@ await build({
   minify: true,
   sourcemap: false,
   legalComments: "eof",
+  plugins: [{
+    name: "step-file-format-root",
+    setup(build) {
+      build.onResolve({ filter: /^\.\.\/\.\.\/step-file-format\/dist\/(?:index|worker)\.js$/ }, (args) => ({
+        path: path.join(stepFileFormatRoot, "dist", path.basename(args.path)),
+      }));
+      build.onLoad({ filter: /[\\/]geometry\.js$/ }, async (args) => {
+        if (path.resolve(args.path) !== path.resolve(stepFileFormatRoot, "dist", "geometry.js")) return undefined;
+        let contents = await readFile(args.path, "utf8");
+        if (contents.includes("shape-relationship-${entity.id}")) return { contents, loader: "js" };
+
+        // Solid Edge exports the occurrence transform on a generic
+        // SHAPE_REPRESENTATION and links its B-Rep through an identity
+        // SHAPE_REPRESENTATION_RELATIONSHIP. The unreleased package currently
+        // stops at that identity bridge, leaving every part definition at its
+        // source placement and causing coincident surfaces to flicker.
+        const replacements = [
+          [
+            "    const itemOwners = new Map(), mappedItemParents = new Map(), representationNames = new Map();\n    const tileSymbolRepresentations",
+            "    const itemOwners = new Map(), mappedItemParents = new Map(), representationNames = new Map();\n    const representationsWithRenderItems = new Set();\n    const tileSymbolRepresentations",
+          ],
+          [
+            "        for (const occurrence of renderItemOccurrencesBelow(document, entity.id)) {\n            const owners",
+            "        for (const occurrence of renderItemOccurrencesBelow(document, entity.id)) {\n            representationsWithRenderItems.add(entity.id);\n            const owners",
+          ],
+          [
+            "    const parentEdges = new Map();\n    for (const entity of document.ofType(\"REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION\")) {",
+            `    const parentEdges = new Map();
+    for (const entity of document.ofType("SHAPE_REPRESENTATION_RELATIONSHIP")) {
+        if (document.component(entity, "REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION"))
+            continue;
+        const relationship = document.component(entity, "SHAPE_REPRESENTATION_RELATIONSHIP");
+        const first = asStepReferenceId(relationship.parameters[2]), second = asStepReferenceId(relationship.parameters[3]);
+        if (first === undefined || second === undefined)
+            continue;
+        const firstHasItems = representationsWithRenderItems.has(first), secondHasItems = representationsWithRenderItems.has(second);
+        if (firstHasItems === secondHasItems)
+            continue;
+        const child = firstHasItems ? first : second, parent = firstHasItems ? second : first;
+        const edges = parentEdges.get(child) ?? [];
+        edges.push({ parent, key: \`shape-relationship-\${entity.id}\`, relationshipId: entity.id, matrix: identityMatrix() });
+        parentEdges.set(child, edges);
+    }
+    for (const entity of document.ofType("REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION")) {`,
+          ],
+        ];
+        for (const [before, after] of replacements) {
+          if (!contents.includes(before)) throw new Error("The temporary Solid Edge STEP assembly fix no longer matches step-file-format.");
+          contents = contents.replace(before, after);
+        }
+        return { contents, loader: "js" };
+      });
+    },
+  }],
 });
 
 await mkdir(bzipTarget, { recursive: true });

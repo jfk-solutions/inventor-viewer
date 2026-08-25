@@ -15,7 +15,7 @@ type StepRenderMesh = {
   name: string;
   positions: Float32Array;
   normals: Float32Array;
-  indices: Uint32Array;
+  indices: Uint16Array | Uint32Array;
   color: readonly [number, number, number, number];
   material?: StepRenderMaterial;
   backColor?: readonly [number, number, number, number];
@@ -34,7 +34,7 @@ type StepRenderMaterial = {
 type StepRenderPolyline = {
   name: string;
   positions: Float32Array;
-  indices: Uint32Array;
+  indices: Uint16Array | Uint32Array;
   color: readonly [number, number, number, number];
   width?: number;
   pattern?: readonly number[];
@@ -76,6 +76,7 @@ type StepRenderView = {
   backPlaneDistance?: number;
   sideClipping: boolean;
   hiddenLineSurfaceRemoval?: boolean;
+  backgroundColor?: readonly [number, number, number];
   sourceEntityId: number;
   sourceRepresentationIds: readonly number[];
   meshIndices: readonly number[];
@@ -92,6 +93,7 @@ type StepRenderNode = {
   textIndices: readonly number[];
   children: readonly StepRenderNode[];
   sourceRepresentationId?: number;
+  sourceSemanticIds?: readonly number[];
   sourceRelationshipId?: number;
   sourceMappedItemId?: number;
 };
@@ -202,9 +204,12 @@ async function convertWithOcct(file: File, format: OcctFormat, onProgress?: CadL
   return result;
 }
 
-async function parseStep(file: File, onProgress?: CadLoadProgress) {
-  const input = await file.arrayBuffer();
-  const largeFile = input.byteLength >= 8 * 1024 * 1024;
+async function parseStep(file: File, onProgress?: CadLoadProgress, selectedFiles: readonly File[] = [file]) {
+  const selected = file as File & { webkitRelativePath?: string; stepContainerName?: string };
+  const catalogFiles = selectedFiles.filter((candidate) => ["step", "stp", "zip"].includes(extension(candidate.name)));
+  const useCatalog = Boolean(selected.stepContainerName || catalogFiles.some((candidate) => extension(candidate.name) === "zip") || catalogFiles.length > 1);
+  const input = useCatalog ? undefined : await file.arrayBuffer();
+  const largeFile = file.size >= 8 * 1024 * 1024;
   const worker = createStepWorker();
   const started = performance.now();
   return new Promise<StepRenderScene>((resolve, reject) => {
@@ -241,16 +246,34 @@ async function parseStep(file: File, onProgress?: CadLoadProgress) {
     };
     worker.onerror = (event) => finish(() => reject(new Error(event.message || "The STEP worker stopped unexpectedly.")));
     try {
-      worker.postMessage({
-        type: "load",
-        bytes: input,
-        parse: { progressInterval: 2_000 },
-        tessellation: {
-          curveSegments: largeFile ? 20 : 32,
-          surfaceSegments: largeFile ? 12 : 24,
-          subdivisionDepth: largeFile ? 0 : 1,
-        },
-      }, [input]);
+      const tessellation = {
+        curveSegments: largeFile ? 20 : 32,
+        surfaceSegments: largeFile ? 12 : 24,
+        subdivisionDepth: largeFile ? 0 : 1,
+        geometryCacheSize: 65_536,
+      };
+      if (useCatalog) {
+        onProgress?.("Cataloging STEP files and external references…", 43);
+        worker.postMessage({
+          type: "catalog",
+          inputs: catalogFiles.map((candidate) => ({
+            file: candidate,
+            path: (candidate as File & { webkitRelativePath?: string }).webkitRelativePath || candidate.name,
+          })),
+          selectedPath: selected.webkitRelativePath || file.name,
+          selectedName: file.name,
+          selectedContainerName: selected.stepContainerName,
+          parse: { progressInterval: 2_000 },
+          tessellation,
+        });
+      } else {
+        worker.postMessage({
+          type: "load",
+          bytes: input,
+          parse: { progressInterval: 2_000 },
+          tessellation,
+        }, [input!]);
+      }
     } catch (error) {
       finish(() => reject(error));
     }
@@ -450,6 +473,7 @@ function createStepModel(runtime: CadRuntime, scene: StepRenderScene, fileName: 
       name: node.name,
       sourcePath: fileName,
       ...(source.sourceRepresentationId === undefined ? {} : { representationId: source.sourceRepresentationId }),
+      ...(source.sourceSemanticIds === undefined ? {} : { semanticIds: source.sourceSemanticIds }),
       ...(source.sourceRelationshipId === undefined ? {} : { relationshipId: source.sourceRelationshipId }),
       ...(source.sourceMappedItemId === undefined ? {} : { mappedItemId: source.sourceMappedItemId }),
     };
@@ -514,11 +538,12 @@ export async function loadOcctModel(
   file: File,
   manager: any,
   onProgress?: CadLoadProgress,
+  selectedFiles: readonly File[] = [file],
 ) {
   const format = extension(file.name);
   if (format === "step" || format === "stp") {
     onProgress?.("Preparing STEP file…", 42);
-    const scene = await parseStep(file, onProgress);
+    const scene = await parseStep(file, onProgress, selectedFiles);
     onProgress?.("Preparing STEP display…", 94);
     return { model: createStepModel(runtime, scene, file.name), animations: [] };
   }
@@ -535,6 +560,6 @@ export async function loadOcctModel(
   return { model: result.scene, animations: result.animations ?? [] };
 }
 
-export function loadStepModel(runtime: CadRuntime, file: File, manager: any, onProgress?: CadLoadProgress) {
-  return loadOcctModel(runtime, file, manager, onProgress);
+export function loadStepModel(runtime: CadRuntime, file: File, manager: any, onProgress?: CadLoadProgress, selectedFiles: readonly File[] = [file]) {
+  return loadOcctModel(runtime, file, manager, onProgress, selectedFiles);
 }

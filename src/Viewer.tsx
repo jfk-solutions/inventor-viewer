@@ -403,7 +403,7 @@ async function loadThreeModel(
 
   try {
     if (["step", "stp", "iges", "igs", "brep", "brp"].includes(format)) {
-      const result = await loadOcctModel(runtime, file, manager, onProgress);
+      const result = await loadOcctModel(runtime, file, manager, onProgress, files);
       model = result.model;
       animations = result.animations;
     } else if (format === "3dm") {
@@ -741,10 +741,11 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         renderer.toneMapping = THREE.AgXToneMapping;
         renderer.toneMappingExposure = 1.05;
-        renderer.setClearColor(0x111719, 1);
+        const defaultBackgroundColor = new THREE.Color(0x111719);
+        renderer.setClearColor(defaultBackgroundColor, 1);
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x111719);
-        scene.fog = new THREE.FogExp2(0x111719, 0.00035);
+        scene.background = defaultBackgroundColor.clone();
+        scene.fog = new THREE.FogExp2(defaultBackgroundColor, 0.00035);
         const perspective = new THREE.PerspectiveCamera(42, 1, 0.001, 1e8);
         const linear = new THREE.OrthographicCamera(-5, 5, 5, -5, -1e7, 1e7);
         perspective.position.set(6, 4.5, 7);
@@ -918,6 +919,9 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
 
         const releaseModel = () => {
           engine.stepSource = null;
+          scene.background = defaultBackgroundColor.clone();
+          scene.fog.color.copy(defaultBackgroundColor);
+          renderer.setClearColor(defaultBackgroundColor, 1);
           if (!engine.model) return;
           if (engine.mixer) {
             engine.mixer.stopAllAction();
@@ -938,6 +942,12 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
         const applyDefaultStepView = (model: any) => {
           const view = model.userData?.stepDefaultView;
           if (!view) return;
+          if (view.backgroundColor) {
+            const background = new THREE.Color().fromArray(view.backgroundColor);
+            scene.background = background;
+            scene.fog.color.copy(background);
+            renderer.setClearColor(background, 1);
+          }
           model.updateWorldMatrix(true, true);
           const position = new THREE.Vector3().fromArray(view.position).applyMatrix4(model.matrixWorld);
           const target = new THREE.Vector3().fromArray(view.target).applyMatrix4(model.matrixWorld);
@@ -1586,6 +1596,7 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
               const name = entry.path.replace(/\\/g, "/").split("/").pop() || "archive-entry";
               const file = new File([bytes], name);
               Object.defineProperty(file, "webkitRelativePath", { configurable: true, value: entry.path.replace(/\\/g, "/") });
+              Object.defineProperty(file, "stepContainerName", { configurable: true, value: files[0]?.name });
               return file;
             });
             archiveFileCache.set(key, pending);
@@ -1616,7 +1627,10 @@ export function Viewer({ files, onClose, onOpenFiles }: ViewerProps) {
             const modelFile = await extractArchiveFile(entry);
             const companionFiles = await Promise.all(companionEntries.map(extractArchiveFile));
             if (!isCurrent()) return;
-            const loaded = await loadThreeModel(runtime, modelFile, [modelFile, ...companionFiles], (nextStatus, nextProgress) => {
+            const selectedModelFiles = /\.(?:step|stp)$/i.test(path)
+              ? [files[0], modelFile, ...companionFiles].filter((candidate): candidate is File => Boolean(candidate))
+              : [modelFile, ...companionFiles];
+            const loaded = await loadThreeModel(runtime, modelFile, selectedModelFiles, (nextStatus, nextProgress) => {
               if (!isCurrent()) return;
               setStatus(nextStatus);
               setProgress(nextProgress);
